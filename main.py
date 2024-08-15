@@ -9,15 +9,14 @@ GPIO.setmode(GPIO.BCM)
 servo1 = Servo(17, 74, 180, 2.5, 12.5)
 servo2 = Servo(27, 68, 180, 2.5, 12.5)
 servo3 = Servo(22, 87, 180, 2.5, 12.5)
-for i in range(5):
-    for phase in range(0,int(math.pi*200)):
-        angle1, angle2, angle3 = calc_servo_positions(phase/100,math.asin(math.radians(10)),109)
 
-        servo1.angle = angle1
-        servo2.angle = angle2
-        servo3.angle = angle3
+angle1, angle2, angle3 = calc_servo_positions(10,-5,120)
 
-        time.sleep(0.005)
+servo1.angle = angle1
+servo2.angle = angle2
+servo3.angle = angle3
+
+time.sleep(5)
 
 servo1.angle = 0
 servo2.angle = 0

@@ -1,5 +1,20 @@
 import math
 
+def get_phase_and_amplitude(x_rot, y_rot):
+    
+    if math.asin(math.radians(x_rot)) == 0:
+        if math.asin(math.radians(y_rot)) > 0:
+            phase = 3 * math.pi / 2
+            amplitude = math.asin(math.radians(y_rot))
+        else:
+            phase = math.pi / 2
+            amplitude = -math.asin(math.radians(y_rot))
+    else:
+        phase = math.atan2(-math.asin(math.radians(y_rot)), math.asin(math.radians(x_rot)))
+        amplitude = math.asin(math.radians(x_rot)) / math.cos(phase)
+    
+    return phase, amplitude
+
 def calc_leg(angle, height):
     # measurements
     lower_arm_len = 70
@@ -19,7 +34,10 @@ def calc_leg(angle, height):
     
     return alpha
 
-def calc_servo_positions(phase, amplitude, height):
+def calc_servo_positions(x_rot, y_rot, height):
+    
+    phase, amplitude = get_phase_and_amplitude(x_rot,y_rot)
+    
     disc_angle1 = math.asin(math.cos(phase+math.radians(0))*amplitude)
     disc_angle2 = math.asin(math.cos(phase+math.radians(120))*amplitude)
     disc_angle3 = math.asin(math.cos(phase+math.radians(-120))*amplitude)
