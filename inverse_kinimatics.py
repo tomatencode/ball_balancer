@@ -19,18 +19,13 @@ def calc_leg(angle, height):
     
     return alpha
 
-def calc_servo_positions(pitch, roll, height):
-    phase = math.atan(-math.sin(math.radians(roll))/math.sin(math.radians(pitch)))
-    amplitude = math.sin(math.radians(pitch))/math.cos(phase)
-    
+def calc_servo_positions(phase, amplitude, height):
     disc_angle1 = math.asin(math.cos(phase+math.radians(0))*amplitude)
-    disc_angle2 = math.asin(math.cos(phase+math.radians(60))*amplitude)
-    disc_angle3 = math.asin(math.cos(phase+math.radians(120))*amplitude)
+    disc_angle2 = math.asin(math.cos(phase+math.radians(120))*amplitude)
+    disc_angle3 = math.asin(math.cos(phase+math.radians(-120))*amplitude)
     
     angle1 = math.degrees(calc_leg(disc_angle1, height))
     angle2 = math.degrees(calc_leg(disc_angle2, height))
     angle3 = math.degrees(calc_leg(disc_angle3, height))
     
     return angle1, angle2, angle3
-
-calc_servo_positions(10,-12,109)
