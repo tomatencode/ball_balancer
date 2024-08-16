@@ -1,57 +1,88 @@
-import cv2 
-import numpy as np 
+import cv2
+import numpy as np
+from datetime import datetime
 
-# Open the webcam (index 0 is usually the default webcam)
+mask_scaling_factor = 3
+
+def adjust_gamma(image, gamma=1.0):
+    inv_gamma = 1.0 / gamma
+    table = np.array([((i / 255.0) ** inv_gamma) * 255 for i in np.arange(0, 256)]).astype("uint8")
+    return cv2.LUT(image, table)
+
+def adjust_hsv_range(hsv, target_color_hsv):
+    # Calculate the mean value of the HSV image
+    mean_hue = np.mean(hsv[:, :, 0])
+    mean_saturation = np.mean(hsv[:, :, 1])
+    mean_value = np.mean(hsv[:, :, 2])
+
+    # Adjust the target color based on the current lighting
+    lower_bound = np.array([
+        max(0, target_color_hsv[0] - 20),
+        max(0, target_color_hsv[1] - 100),
+        max(0, target_color_hsv[2] - 100)
+    ])
+    upper_bound = np.array([
+        min(190, target_color_hsv[0] + 20),
+        min(255, target_color_hsv[1] + 100),
+        min(255, target_color_hsv[2] + 100)
+    ])
+    return lower_bound, upper_bound
+
 cap = cv2.VideoCapture(0)
 
-# Check if the webcam is opened correctly
-if not cap.isOpened():
-    print("Error: Could not open webcam.")
-    exit()
-
-# Capture a single frame
+ret, frame = cap.read()
 ret, frame = cap.read()
 
-# Check if the frame was captured successfully
 if not ret:
-    print("Error: Could not read frame.")
-    cap.release()
     exit()
 
-img = frame
+start = datetime.now()
 
-# Convert to grayscale. 
-gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+# scale down the mask to make the cirvle detection faster
+frame_widht, frame_height, _ = frame.shape
+adjusted_frame = cv2.resize(frame, (int(frame_height/mask_scaling_factor), int(frame_widht/mask_scaling_factor)))
 
-# Blur using a smaller kernel
-gray_blurred = cv2.GaussianBlur(gray, (5, 5), 2)
+# Adjust gamma to handle lighting conditions
+adjusted_frame = cv2.xphoto.createSimpleWB().balanceWhite(adjusted_frame)
 
-# Apply Hough transform on the blurred image
-detected_circles = cv2.HoughCircles(
-    gray_blurred,
-    cv2.HOUGH_GRADIENT,
-    dp=1,
-    minDist=50,
-    param1=100,
-    param2=60,
-    minRadius=30,
-    maxRadius=250
-)
+# Convert to HSV color space
+hsv = cv2.cvtColor(adjusted_frame, cv2.COLOR_BGR2HSV)
+hsv[:, :, 2] = cv2.equalizeHist(hsv[:, :, 2])
 
-# Draw circles that are detected. 
-if detected_circles is not None: 
+# Define the color range for detection
+target_color_hsv = np.array([55, 170, 170])  # ball color
+lower_color, upper_color = adjust_hsv_range(hsv, target_color_hsv)
+mask = cv2.inRange(hsv, lower_color, upper_color)
 
-	# Convert the circle parameters a, b and r to integers. 
-	detected_circles = np.uint16(np.around(detected_circles)) 
 
-	for pt in detected_circles[0, :]: 
-		a, b, r = pt[0], pt[1], pt[2] 
+# Blur the mask to reduce noise
+mask = cv2.GaussianBlur(mask, (max(3, int(9/mask_scaling_factor)), max(3, int(9/mask_scaling_factor))), 2)
 
-		# Draw the circumference of the circle. 
-		cv2.circle(img, (a, b), r, (0, 255, 0), 2) 
 
-		# Draw a small circle (of radius 1) to show the center. 
-		cv2.circle(img, (a, b), 1, (0, 0, 255), 3) 
-  
-cv2.imwrite("circles.jpg", img)
+# Detect edges using Canny
+edges = cv2.Canny(mask, 50, 150)
+
+# Find contours
+contours, _ = cv2.findContours(edges, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+for contour in contours:
+    # Approximate the contour to a circle
+    center, radius = cv2.minEnclosingCircle(contour)
+
+    if radius > 5:  # Filter out small circles
+        x, y = tuple(map(int, center))
+        radius = int(radius*mask_scaling_factor)
+
+        # Draw the circle
+        cv2.circle(frame, (x*mask_scaling_factor,y*mask_scaling_factor), radius, (0, 255, 0), 2)
+        cv2.circle(frame, (x*mask_scaling_factor,y*mask_scaling_factor), 2, (0, 0, 255), 3)
+        
+duration = datetime.now()-start
+
+# Save the processed images
+cv2.imwrite("mask.png", mask)
+cv2.imwrite("adjusted_frame.png", adjusted_frame)
+cv2.imwrite("Detected_Circles.png", frame)
+print(f"tps: {1000000/duration.microseconds}")
+
 cap.release()
