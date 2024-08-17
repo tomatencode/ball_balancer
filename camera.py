@@ -2,8 +2,6 @@ import cv2
 import numpy as np
 from datetime import datetime
 
-mask_scaling_factor = 3
-
 def adjust_gamma(image, gamma=1.0):
     inv_gamma = 1.0 / gamma
     table = np.array([((i / 255.0) ** inv_gamma) * 255 for i in np.arange(0, 256)]).astype("uint8")
@@ -29,21 +27,19 @@ def adjust_hsv_range(hsv, target_color_hsv):
     return lower_bound, upper_bound
 
 cap = cv2.VideoCapture(0)
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 240)
 
 ret, frame = cap.read()
+
+start = datetime.now()
 ret, frame = cap.read()
 
 if not ret:
     exit()
 
-start = datetime.now()
-
-# scale down the mask to make the cirvle detection faster
-frame_widht, frame_height, _ = frame.shape
-adjusted_frame = cv2.resize(frame, (int(frame_height/mask_scaling_factor), int(frame_widht/mask_scaling_factor)))
-
 # Adjust gamma to handle lighting conditions
-adjusted_frame = cv2.xphoto.createSimpleWB().balanceWhite(adjusted_frame)
+adjusted_frame = cv2.xphoto.createSimpleWB().balanceWhite(frame)
 
 # Convert to HSV color space
 hsv = cv2.cvtColor(adjusted_frame, cv2.COLOR_BGR2HSV)
@@ -55,32 +51,25 @@ lower_color, upper_color = adjust_hsv_range(hsv, target_color_hsv)
 mask = cv2.inRange(hsv, lower_color, upper_color)
 
 
-# Blur the mask to reduce noise
-mask = cv2.GaussianBlur(mask, (max(3, int(9/mask_scaling_factor)), max(3, int(9/mask_scaling_factor))), 2)
+# Apply Gaussian blur
+blurred_mask = cv2.GaussianBlur(mask, (9, 9), 2)
 
+# Perform Canny edge detection
+edges = cv2.Canny(blurred_mask, 50, 150)
 
-# Detect edges using Canny
-edges = cv2.Canny(mask, 50, 150)
-
-# Find contours
-contours, _ = cv2.findContours(edges, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-
-for contour in contours:
-    # Approximate the contour to a circle
-    center, radius = cv2.minEnclosingCircle(contour)
-
-    if radius > 5:  # Filter out small circles
-        x, y = tuple(map(int, center))
-        radius = int(radius*mask_scaling_factor)
-
-        # Draw the circle
-        cv2.circle(frame, (x*mask_scaling_factor,y*mask_scaling_factor), radius, (0, 255, 0), 2)
-        cv2.circle(frame, (x*mask_scaling_factor,y*mask_scaling_factor), 2, (0, 0, 255), 3)
+# Detect circles using Hough Transform
+circles = cv2.HoughCircles(edges, cv2.HOUGH_GRADIENT, dp=1.2, minDist=50, param1=100, param2=30, minRadius=10, maxRadius=250)
         
 duration = datetime.now()-start
 
+if circles is not None:
+    circles = np.uint16(np.around(circles))
+    for i in circles[0, :]:
+        cv2.circle(frame, (i[0], i[1]), i[2], (0, 255, 0), 1)
+        cv2.circle(frame, (i[0], i[1]), 0, (0, 0, 255), 1)
+
 # Save the processed images
-cv2.imwrite("mask.png", mask)
+cv2.imwrite("mask.png", blurred_mask)
 cv2.imwrite("adjusted_frame.png", adjusted_frame)
 cv2.imwrite("Detected_Circles.png", frame)
 print(f"tps: {1000000/duration.microseconds}")

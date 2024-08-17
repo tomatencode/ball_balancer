@@ -10,7 +10,7 @@ servo1 = Servo(17, 74, 180, 2.5, 12.5)
 servo2 = Servo(27, 68, 180, 2.5, 12.5)
 servo3 = Servo(22, 87, 180, 2.5, 12.5)
 
-angle1, angle2, angle3 = calc_servo_positions(10,-5,120)
+angle1, angle2, angle3 = calc_servo_positions(20,0,120)
 
 servo1.angle = angle1
 servo2.angle = angle2
