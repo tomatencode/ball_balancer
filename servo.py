@@ -1,4 +1,5 @@
 import RPi.GPIO as GPIO
+import time
 
 class Servo:
     def __init__(self, pin, offset, max_angle, pwm_min, pwm_max, frequence = 50) -> None:
@@ -29,5 +30,20 @@ class Servo:
     
     @angle.setter
     def angle(self, value):
-        self._angle = value
+        self._angle = min(max(value, -22), 30)
         self.__pwm.ChangeDutyCycle(self.angle_to_duty_cycle(self._angle + self.__offset))
+      
+if __name__ == "__main__":
+    GPIO.setmode(GPIO.BCM)  
+    servo1 = Servo(17, 74.3, 180, 2.5, 12.5)
+    servo2 = Servo(27, 68.5, 180, 2.5, 12.5)
+    servo3 = Servo(22, 90, 180, 2.5, 12.5)
+
+    servo1.angle = -30
+    servo2.angle = -30
+    servo3.angle = -30
+
+    time.sleep(5)
+
+    del servo1
+    GPIO.cleanup()

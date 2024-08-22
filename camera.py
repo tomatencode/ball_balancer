@@ -1,77 +1,102 @@
 import cv2
 import numpy as np
-from datetime import datetime
 
-def adjust_gamma(image, gamma=1.0):
-    inv_gamma = 1.0 / gamma
-    table = np.array([((i / 255.0) ** inv_gamma) * 255 for i in np.arange(0, 256)]).astype("uint8")
-    return cv2.LUT(image, table)
+class Camera:
 
-def adjust_hsv_range(hsv, target_color_hsv):
-    # Calculate the mean value of the HSV image
-    mean_hue = np.mean(hsv[:, :, 0])
-    mean_saturation = np.mean(hsv[:, :, 1])
-    mean_value = np.mean(hsv[:, :, 2])
+    def __init__(self) -> None:
+        self.__cap = cv2.VideoCapture(0)
+        self.__cap.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
+        self.__cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 240)
 
-    # Adjust the target color based on the current lighting
-    lower_bound = np.array([
-        max(0, target_color_hsv[0] - 20),
-        max(0, target_color_hsv[1] - 100),
-        max(0, target_color_hsv[2] - 100)
-    ])
-    upper_bound = np.array([
-        min(190, target_color_hsv[0] + 20),
-        min(255, target_color_hsv[1] + 100),
-        min(255, target_color_hsv[2] + 100)
-    ])
-    return lower_bound, upper_bound
+        ret, frame = self.__cap.read()
 
-cap = cv2.VideoCapture(0)
-cap.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
-cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 240)
+        if not ret:
+            exit()
 
-ret, frame = cap.read()
+    def get_ball_pos_in_frame(self, save=False):
+        ret, frame = self.__cap.read()
 
-start = datetime.now()
-ret, frame = cap.read()
+        if not ret:
+            exit()
+            
+        # Adjust gamma to handle lighting conditions
+        adjusted_frame = cv2.xphoto.createSimpleWB().balanceWhite(frame)
 
-if not ret:
-    exit()
+        # Convert to HSV color space
+        hsv = cv2.cvtColor(adjusted_frame, cv2.COLOR_BGR2HSV)
+        hsv[:, :, 2] = cv2.equalizeHist(hsv[:, :, 2])
 
-# Adjust gamma to handle lighting conditions
-adjusted_frame = cv2.xphoto.createSimpleWB().balanceWhite(frame)
+        # Define the orange color range in HSV
+        lower_orange1 = np.array([0, 193, 136])
+        upper_orange1 = np.array([13, 255, 255])
+        mask1 = cv2.inRange(hsv, lower_orange1, upper_orange1)
 
-# Convert to HSV color space
-hsv = cv2.cvtColor(adjusted_frame, cv2.COLOR_BGR2HSV)
-hsv[:, :, 2] = cv2.equalizeHist(hsv[:, :, 2])
+        lower_orange2 = np.array([9, 16, 233])
+        upper_orange2 = np.array([47, 220, 255])
+        mask2 = cv2.inRange(hsv, lower_orange2, upper_orange2)
 
-# Define the color range for detection
-target_color_hsv = np.array([55, 170, 170])  # ball color
-lower_color, upper_color = adjust_hsv_range(hsv, target_color_hsv)
-mask = cv2.inRange(hsv, lower_color, upper_color)
+        mask = cv2.bitwise_or(mask1, mask2)
+
+        # Apply Gaussian blur to reduce noise
+        blurred_mask = cv2.GaussianBlur(mask, (9, 9), 2)
+
+        # Find contours in the mask
+        contours, _ = cv2.findContours(blurred_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
 
-# Apply Gaussian blur
-blurred_mask = cv2.GaussianBlur(mask, (9, 9), 2)
-
-# Perform Canny edge detection
-edges = cv2.Canny(blurred_mask, 50, 150)
-
-# Detect circles using Hough Transform
-circles = cv2.HoughCircles(edges, cv2.HOUGH_GRADIENT, dp=1.2, minDist=50, param1=100, param2=30, minRadius=10, maxRadius=250)
+        if contours:
+            # Find the largest contour (assuming it's the ball)
+            largest_contour = max(contours, key=cv2.contourArea)
+            
+            min_contour_area = 1000  # Adjust based on the expected size of the ball
+            if cv2.contourArea(largest_contour) > min_contour_area:
+                # Fit an ellipse to the largest contour to account for lens distortion
+                ellipse = cv2.fitEllipse(largest_contour)
+                
+                center = (int(ellipse[0][0]), int(ellipse[0][1]))
+                
+                if save:
+                    cv2.ellipse(frame, ellipse, (0, 255, 0), 2)
+                    cv2.circle(frame, center, 3, (0, 0, 255), -1)
+                    cv2.imwrite("Detected_Circles.png", frame)
+                    cv2.imwrite("mask.png", mask)
+                    cv2.imwrite("mask1.png", mask1)
+                    cv2.imwrite("mask2.png", mask2)
+                    
+                return center
+                
+            if save:
+                cv2.imwrite("Detected_Circles.png", frame)
+                cv2.imwrite("mask.png", mask)
+                cv2.imwrite("mask1.png", mask1)
+                cv2.imwrite("mask2.png", mask2)
+            
+            return None, None
+        else:
+            if save:
+                cv2.imwrite("Detected_Circles.png", frame)
+                
+            return None, None
+    
+    def get_ball_pos(self,save=False):
+        x_in_frame, y_in_frame = self.get_ball_pos_in_frame(save=save)
+        if not x_in_frame == None:
+            y = x_in_frame-164
+            x = y_in_frame-120
+            
+            y = -y
+            
+            return x, y
+        else:
+            return None, None
         
-duration = datetime.now()-start
 
-if circles is not None:
-    circles = np.uint16(np.around(circles))
-    for i in circles[0, :]:
-        cv2.circle(frame, (i[0], i[1]), i[2], (0, 255, 0), 1)
-        cv2.circle(frame, (i[0], i[1]), 0, (0, 0, 255), 1)
+    def __del__(self):
+        self.__cap.release()
 
-# Save the processed images
-cv2.imwrite("mask.png", blurred_mask)
-cv2.imwrite("adjusted_frame.png", adjusted_frame)
-cv2.imwrite("Detected_Circles.png", frame)
-print(f"tps: {1000000/duration.microseconds}")
+if __name__ == "__main__":
+    camera = Camera()
 
-cap.release()
+    camera.get_ball_pos(save=True)
+
+    del camera
