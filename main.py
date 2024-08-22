@@ -67,8 +67,7 @@ def calc_plate_height(x, y, slope_x, slope_y, base_height=110):
             angle_ball_center = 0
     else:
         angle_ball_center = math.atan(y/x)
-    
-    return base_height-math.cos(get_slope_in_direction_on_plate(slope_x, slope_y, angle_ball_center))*math.sqrt(x**2+y**2)*0.2
+    return base_height-math.cos(get_slope_in_direction_on_plate(slope_x, slope_y, angle_ball_center))*min(math.sqrt(x**2+y**2)*0.2,17)
 
 th.Thread(target=key_capture_thread, args=(), name='key_capture_thread', daemon=True).start()
 while running:
@@ -78,7 +77,7 @@ while running:
     if x is not None and y is not None: # if camera sees the ball
         if not ball_on_plate:
             ball_on_plate = True
-            print("ball on plate")
+            print("back on :D")
         
         current_time = time.time()
         dt = current_time - last_time
