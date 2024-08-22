@@ -56,16 +56,9 @@ def get_ball_vel(pos_history):
         v_x, v_y = 0, 0
     return v_x, v_y
 
-# calc plate height
+# calculates the height of the center of the plate to keep the ball at a constant one (looks cool)
 def calc_plate_height(x, y, slope_x, slope_y, base_height=110):
-    if y == 0:
-        if x > 0:
-            angle_ball_center = 0
-        elif x < 0:
-            angle_ball_center = 180
-        else:
-            angle_ball_center = 0
-    elif x == 0:
+    if x == 0:
         if y > 0:
             angle_ball_center = 90
         elif y < 0:
@@ -82,7 +75,7 @@ while running:
     
     x, y = camera.get_ball_pos()
     
-    if x is not None and y is not None:
+    if x is not None and y is not None: # if camera sees the ball
         if not ball_on_plate:
             ball_on_plate = True
             print("ball on plate")

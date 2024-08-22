@@ -81,9 +81,13 @@ class Camera:
     def get_ball_pos(self,save=False):
         x_in_frame, y_in_frame = self.get_ball_pos_in_frame(save=save)
         if not x_in_frame == None:
+            # center of plate
             y = x_in_frame-164
             x = y_in_frame-120
             
+            # because camera is rortated
+            # and the order of servos
+            # idk it works
             y = -y
             
             return x, y
