@@ -1,6 +1,6 @@
 import math
 
-def get_phase_and_amplitude(x_rot, y_rot):
+def get_slope_in_direction_on_plate(x_rot, y_rot, angle):
     
     if math.asin(math.radians(x_rot)) == 0:
         if math.asin(math.radians(y_rot)) > 0:
@@ -13,7 +13,7 @@ def get_phase_and_amplitude(x_rot, y_rot):
         phase = math.atan2(-math.asin(math.radians(y_rot)), math.asin(math.radians(x_rot)))
         amplitude = math.asin(math.radians(x_rot)) / math.cos(phase)
     
-    return phase, amplitude
+    return math.asin(math.cos(phase+math.radians(angle))*amplitude)
 
 def calc_leg(angle, height):
     # measurements
@@ -35,12 +35,9 @@ def calc_leg(angle, height):
     return alpha
 
 def calc_servo_positions(x_rot, y_rot, height):
-    
-    phase, amplitude = get_phase_and_amplitude(x_rot,y_rot)
-    
-    disc_angle1 = math.asin(math.cos(phase+math.radians(0))*amplitude)
-    disc_angle2 = math.asin(math.cos(phase+math.radians(120))*amplitude)
-    disc_angle3 = math.asin(math.cos(phase+math.radians(-120))*amplitude)
+    disc_angle1 = get_slope_in_direction_on_plate(x_rot, y_rot, 0)
+    disc_angle2 = get_slope_in_direction_on_plate(x_rot, y_rot, 120)
+    disc_angle3 = get_slope_in_direction_on_plate(x_rot, y_rot, -120)
     
     angle1 = math.degrees(calc_leg(disc_angle1, height))
     angle2 = math.degrees(calc_leg(disc_angle2, height))
