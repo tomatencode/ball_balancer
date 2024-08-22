@@ -16,9 +16,9 @@ camera = Camera()
 
 # PID parameters
 p = 0.11
-i = 0.02
+i = 0.04
 d = 0.07
-max_integral = 200  # Limit for integral term
+max_integral = 100  # Limit for integral term
 ball_on_plate = False
 
 # State variables
