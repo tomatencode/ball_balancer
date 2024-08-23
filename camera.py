@@ -27,12 +27,12 @@ class Camera:
         hsv[:, :, 2] = cv2.equalizeHist(hsv[:, :, 2])
 
         # Define the orange color range in HSV
-        lower_orange1 = np.array([0, 193, 136])
-        upper_orange1 = np.array([13, 255, 255])
+        lower_orange1 = np.array([0, 120, 115])
+        upper_orange1 = np.array([4, 255, 255])
         mask1 = cv2.inRange(hsv, lower_orange1, upper_orange1)
 
-        lower_orange2 = np.array([9, 16, 233])
-        upper_orange2 = np.array([47, 220, 255])
+        lower_orange2 = np.array([0, 87, 175])
+        upper_orange2 = np.array([15, 255, 210])
         mask2 = cv2.inRange(hsv, lower_orange2, upper_orange2)
 
         mask = cv2.bitwise_or(mask1, mask2)
@@ -46,27 +46,51 @@ class Camera:
 
         if contours:
             # Find the largest contour (assuming it's the ball)
-            largest_contour = max(contours, key=cv2.contourArea)
-            
+            contours = sorted(contours, key=cv2.contourArea, reverse=True)
             min_contour_area = 1000  # Adjust based on the expected size of the ball
-            if cv2.contourArea(largest_contour) > min_contour_area:
-                # Fit an ellipse to the largest contour to account for lens distortion
-                ellipse = cv2.fitEllipse(largest_contour)
-                
-                center = (int(ellipse[0][0]), int(ellipse[0][1]))
-                
-                if save:
-                    cv2.ellipse(frame, ellipse, (0, 255, 0), 2)
-                    cv2.circle(frame, center, 3, (0, 0, 255), -1)
-                    cv2.imwrite("Detected_Circles.png", frame)
-                    cv2.imwrite("mask.png", mask)
-                    cv2.imwrite("mask1.png", mask1)
-                    cv2.imwrite("mask2.png", mask2)
+            
+            # Iterate through the contours
+            for contour in contours:
+                if cv2.contourArea(contour) > min_contour_area:
+                    # Fit an ellipse to the largest contour to account for lens distortion
+                    ellipse = cv2.fitEllipse(contour)
                     
-                return center
+                    (x, y), (MA, ma), angle = ellipse
+                    
+                    # Calculate the aspect ratio (MA/ma for the ellipse)
+                    aspect_ratio = min(MA, ma) / max(MA, ma)
+                    
+                    # Calculate the area and convex hull of the contour
+                    contour_area = cv2.contourArea(contour)
+                    hull = cv2.convexHull(contour)
+                    hull_area = cv2.contourArea(hull)
+                    
+                    # Calculate solidity (contour_area / hull_area)
+                    solidity = contour_area / hull_area
+                    
+                    # Calculate the eccentricity of the ellipse
+                    eccentricity = np.sqrt(1 - (MA**2 / ma**2)) if ma > 0 else 0
+                    
+                    # Conditions to accept the ellipse based on aspect ratio, solidity, and eccentricity
+                    if 0.7 <= aspect_ratio <= 1.3 and solidity > 0.9 and eccentricity < 0.7:
+                    
+                        if save:
+                            cv2.ellipse(frame, ellipse, (0, 255, 0), 2)
+                            cv2.circle(frame, (int(x), int(y)), 3, (0, 0, 255), -1)
+                            cv2.imwrite("Detected_Circles.png", frame)
+                            cv2.imwrite("adjusted_frame.png", cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR))
+                            cv2.imwrite("mask.png", mask)
+                            cv2.imwrite("mask1.png", mask1)
+                            cv2.imwrite("mask2.png", mask2)
+                        
+                        return x, -y
                 
+                else:
+                    break
+            
             if save:
                 cv2.imwrite("Detected_Circles.png", frame)
+                cv2.imwrite("adjusted_frame.png", cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR))
                 cv2.imwrite("mask.png", mask)
                 cv2.imwrite("mask1.png", mask1)
                 cv2.imwrite("mask2.png", mask2)
@@ -84,11 +108,6 @@ class Camera:
             # center of plate
             y = x_in_frame-164
             x = y_in_frame-120
-            
-            # because camera is rortated
-            # and the order of servos
-            # idk it works
-            y = -y
             
             return x, y
         else:
