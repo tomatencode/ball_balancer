@@ -11,13 +11,13 @@ class Camera:
         ret, frame = self.__cap.read()
 
         if not ret:
-            exit()
+            raise Exception("Culd not read camera")
 
     def get_ball_pos_in_frame(self, save=False):
         ret, frame = self.__cap.read()
 
         if not ret:
-            exit()
+            raise Exception("Culd not read camera")
             
         # Adjust gamma to handle lighting conditions
         adjusted_frame = cv2.xphoto.createSimpleWB().balanceWhite(frame)
