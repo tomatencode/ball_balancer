@@ -123,6 +123,8 @@ servo1.angle = 0
 servo2.angle = 0
 servo3.angle = 0
 
+time.sleep(0.3)
+
 del camera
 del servo1
 del servo2
