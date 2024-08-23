@@ -13,11 +13,13 @@ class Camera:
         if not ret:
             raise Exception("Culd not read camera")
 
-    def get_ball_pos_in_frame(self, save=False):
-        ret, frame = self.__cap.read()
-
-        if not ret:
-            raise Exception("Culd not read camera")
+    def get_ball_pos_in_frame(self, save=False, use_cam = True, img=None):
+        if use_cam:
+            ret, frame = self.__cap.read()
+            if not ret:
+                raise Exception("Culd not read camera")
+        else:
+            frame = img
             
         # Adjust gamma to handle lighting conditions
         adjusted_frame = cv2.xphoto.createSimpleWB().balanceWhite(frame)
@@ -27,27 +29,30 @@ class Camera:
         hsv[:, :, 2] = cv2.equalizeHist(hsv[:, :, 2])
 
         # Define the orange color range in HSV
-        lower_orange1 = np.array([0, 120, 115])
-        upper_orange1 = np.array([4, 255, 255])
+        lower_orange1 = np.array([0, 110, 136])
+        upper_orange1 = np.array([13, 255, 255])
         mask1 = cv2.inRange(hsv, lower_orange1, upper_orange1)
 
-        lower_orange2 = np.array([0, 87, 175])
-        upper_orange2 = np.array([15, 255, 210])
+        lower_orange2 = np.array([9, 16, 233])
+        upper_orange2 = np.array([47, 220, 255])
         mask2 = cv2.inRange(hsv, lower_orange2, upper_orange2)
 
         mask = cv2.bitwise_or(mask1, mask2)
 
-        # Apply Gaussian blur to reduce noise
-        blurred_mask = cv2.GaussianBlur(mask, (9, 9), 2)
+
+        # Apply morphological operations with the elliptical kernel
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (11, 11))
+        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
 
         # Find contours in the mask
-        contours, _ = cv2.findContours(blurred_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
 
         if contours:
             # Find the largest contour (assuming it's the ball)
             contours = sorted(contours, key=cv2.contourArea, reverse=True)
-            min_contour_area = 1000  # Adjust based on the expected size of the ball
+            min_contour_area = 600  # Adjust based on the expected size of the ball
             
             # Iterate through the contours
             for contour in contours:
@@ -72,24 +77,31 @@ class Camera:
                     eccentricity = np.sqrt(1 - (MA**2 / ma**2)) if ma > 0 else 0
                     
                     # Conditions to accept the ellipse based on aspect ratio, solidity, and eccentricity
-                    if 0.7 <= aspect_ratio <= 1.3 and solidity > 0.9 and eccentricity < 0.7:
+                    if 0.65 <= aspect_ratio <= 1.3 and solidity > 0.9 and eccentricity < 0.75:
                     
                         if save:
+                            # Draw all contours
+                            contour_image = frame.copy()
+                            cv2.drawContours(contour_image, contour, -1, (0, 255, 0), 2)
                             cv2.ellipse(frame, ellipse, (0, 255, 0), 2)
                             cv2.circle(frame, (int(x), int(y)), 3, (0, 0, 255), -1)
                             cv2.imwrite("Detected_Circles.png", frame)
                             cv2.imwrite("adjusted_frame.png", cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR))
+                            cv2.imwrite("counture.png", contour_image)
                             cv2.imwrite("mask.png", mask)
                             cv2.imwrite("mask1.png", mask1)
                             cv2.imwrite("mask2.png", mask2)
                         
-                        return x, -y
+                        return x, y
                 
                 else:
                     break
             
             if save:
+                contour_image = frame.copy()
+                cv2.drawContours(contour_image, contours[0], -1, (0, 255, 0), 2)
                 cv2.imwrite("Detected_Circles.png", frame)
+                cv2.imwrite("counture.png", contour_image)
                 cv2.imwrite("adjusted_frame.png", cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR))
                 cv2.imwrite("mask.png", mask)
                 cv2.imwrite("mask1.png", mask1)
@@ -102,12 +114,14 @@ class Camera:
                 
             return None, None
     
-    def get_ball_pos(self,save=False):
-        x_in_frame, y_in_frame = self.get_ball_pos_in_frame(save=save)
+    def get_ball_pos(self,save=False, use_cam = True, img = None):
+        x_in_frame, y_in_frame = self.get_ball_pos_in_frame(save=save, use_cam = use_cam , img = img)
         if not x_in_frame == None:
             # center of plate
             y = x_in_frame-164
             x = y_in_frame-120
+            
+            y = -y
             
             return x, y
         else:
@@ -120,6 +134,8 @@ class Camera:
 if __name__ == "__main__":
     camera = Camera()
 
-    camera.get_ball_pos(save=True)
+    img = cv2.imread("/home/simon/src/ball_balancer-1/adjusted_frame.png")
+
+    camera.get_ball_pos(save = True, use_cam = False, img = img)
 
     del camera
