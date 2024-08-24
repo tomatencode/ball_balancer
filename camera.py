@@ -35,7 +35,7 @@ class Camera:
         mask1 = cv2.inRange(hsv, lower_orange1, upper_orange1)
 
         lower_orange2 = np.array([9, 16, 233])
-        upper_orange2 = np.array([47, 220, 255])
+        upper_orange2 = np.array([23, 220, 255])
         mask2 = cv2.inRange(hsv, lower_orange2, upper_orange2)
 
         mask = cv2.bitwise_or(mask1, mask2)
