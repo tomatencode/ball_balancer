@@ -1,9 +1,10 @@
 import RPi.GPIO as GPIO
-from servo import Servo
 import threading as th
 import time
 import math
-from inverse_kinimatics import calc_servo_positions, get_slope_in_direction_on_plate
+import numpy as np
+from inverse_kinimatics import calc_servo_positions, normal_vector_from_projections, angle_disc_and_rotated_axis
+from servo import Servo
 from camera import Camera
 
 # GPIO setup
@@ -56,8 +57,27 @@ def get_ball_vel(pos_history):
         v_x, v_y = 0, 0
     return v_x, v_y
 
+def cap_normal_vector(normal_vector, max_angle):
+    # Calculate the max length of the projection onto the XY plane
+    max_xy_projection = math.acos(max_angle)
+    
+    # Calculate the current length of the projection onto the XY plane
+    xy_projection_length = np.linalg.norm(normal_vector[:2])  # norm of (nx, ny)
+
+    if xy_projection_length > max_xy_projection:
+        # Calculate the scaling factor needed to cap the XY projection
+        scale_factor = max_xy_projection / xy_projection_length
+        
+        # Scale the x and y components accordingly
+        normal_vector[:2] *= scale_factor
+
+        # Recalculate the z-component to maintain the original vector direction
+        normal_vector[2] = np.sqrt(1 - np.sum(normal_vector[:2]**2))
+    
+    return normal_vector
+
 # calculates the height of the center of the plate to keep the ball at a constant one (looks cool)
-def calc_plate_height(x, y, slope_x, slope_y, base_height=120):
+def calc_plate_height(x, y, disc_normal, base_height=120):
     if x == 0:
         if y > 0:
             angle_ball_center = 90
@@ -65,9 +85,14 @@ def calc_plate_height(x, y, slope_x, slope_y, base_height=120):
             angle_ball_center = 270
         else:
             angle_ball_center = 0
-    else:
+    elif x > 0:
         angle_ball_center = math.atan(y/x)
-    return base_height-math.cos(get_slope_in_direction_on_plate(slope_x, slope_y, angle_ball_center))*min(math.sqrt(x**2+y**2)*0.2,17)
+    else:
+        angle_ball_center = math.atan(y/x) + math.radians(180)
+    
+    ball_disc_angle = angle_disc_and_rotated_axis(disc_normal, angle_ball_center)
+    
+    return base_height-math.tan(ball_disc_angle)*min(math.sqrt(x**2+y**2),100)
 
 th.Thread(target=key_capture_thread, args=(), name='key_capture_thread', daemon=True).start()
 while running:
@@ -99,12 +124,13 @@ while running:
         slope_x = p*error_x + i*integral_x + d*v_x
         slope_y = p*error_y + i*integral_y + d*v_y
         
-        slope_x = min(max(slope_x, -15), 15)
-        slope_y = min(max(slope_y, -15), 15)
+        disc_normal = normal_vector_from_projections(math.radians(slope_x), math.radians(slope_y))
         
-        height = calc_plate_height(x,y,slope_x,slope_y)
+        disc_normal = cap_normal_vector(disc_normal, math.radians(10))
         
-        angle1, angle2, angle3 = calc_servo_positions(slope_x, slope_y, height)
+        height = calc_plate_height(x,y,disc_normal)
+        
+        angle1, angle2, angle3 = calc_servo_positions(disc_normal, height)
         servo1.angle = angle1
         servo2.angle = angle2
         servo3.angle = angle3
@@ -113,13 +139,13 @@ while running:
             ball_on_plate = False
             print("ball fell off :(")
             
-        angle1, angle2, angle3 = calc_servo_positions(0, 0, 120)
+        angle1, angle2, angle3 = calc_servo_positions([0,0,1], 120)
         servo1.angle = angle1
         servo2.angle = angle2
         servo3.angle = angle3
 
 # Cleanup
-angle1, angle2, angle3 = calc_servo_positions(0, 0, 120)
+angle1, angle2, angle3 = calc_servo_positions([0,0,1], 120)
 servo1.angle = angle1
 servo2.angle = angle2
 servo3.angle = angle3

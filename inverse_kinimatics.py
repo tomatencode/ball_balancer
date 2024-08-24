@@ -23,7 +23,7 @@ def normal_vector_from_projections(theta_x, theta_y):
     
     return normal_vector
 
-def angle_between_normal_and_rotated_axis(normal_vector, theta_z):
+def angle_disc_and_rotated_axis(normal_vector, theta_z):
     """
     Calculate the angle between a plane's normal vector and an axis in the XY plane
     rotated by an angle theta_z around the Z-axis.
@@ -50,7 +50,7 @@ def angle_between_normal_and_rotated_axis(normal_vector, theta_z):
     
     # Calculate the angle in radians
     cos_alpha = dot_product / (magnitude_n * magnitude_a)
-    alpha = np.arccos(cos_alpha)
+    alpha = np.arcsin(cos_alpha)
     
     return alpha
 
@@ -73,16 +73,10 @@ def calc_leg(angle, height):
     
     return alpha
 
-def calc_servo_positions(x_rot, y_rot, height):
-    normal = normal_vector_from_projections(math.radians(x_rot), math.radians(y_rot))
-    
-    normal_angle1 = angle_between_normal_and_rotated_axis(normal, math.radians(0))
-    normal_angle2 = angle_between_normal_and_rotated_axis(normal, math.radians(120))
-    normal_angle3 = angle_between_normal_and_rotated_axis(normal, math.radians(-120))
-    
-    disc_angle1 = normal_angle1-math.radians(90)
-    disc_angle2 = normal_angle2-math.radians(90)
-    disc_angle3 = normal_angle3-math.radians(90)
+def calc_servo_positions(disc_normal, height):
+    disc_angle1 = angle_disc_and_rotated_axis(disc_normal, math.radians(0))
+    disc_angle2 = angle_disc_and_rotated_axis(disc_normal, math.radians(120))
+    disc_angle3 = angle_disc_and_rotated_axis(disc_normal, math.radians(-120))
     
     angle1 = math.degrees(calc_leg(disc_angle1, height))
     angle2 = math.degrees(calc_leg(disc_angle2, height))
@@ -103,7 +97,9 @@ if __name__ == "__main__":
     servo2 = Servo(27, 69.5, 180, 2.5, 12.5)
     servo3 = Servo(22, 90, 180, 2.5, 12.5)
     
-    angle1, angle2, angle3 = calc_servo_positions(0, 20, 120)
+    disc_normal = normal_vector_from_projections(math.radians(10), math.radians(0))
+    
+    angle1, angle2, angle3 = calc_servo_positions(disc_normal, 120)
     servo1.angle = angle1
     servo2.angle = angle2
     servo3.angle = angle3
