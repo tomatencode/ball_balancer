@@ -19,7 +19,7 @@ camera = Camera()
 # PID parameters
 p = 0.11
 i = 0.04
-d = 0.07
+d = 0.06
 max_integral = 120  # Limit for integral term
 
 # State variables
@@ -95,7 +95,7 @@ def calc_plate_height(pos, disc_normal, base_height=120):
     
     ball_disc_angle = angle_disc_and_rotated_axis(disc_normal, angle_ball_center)
     
-    return base_height-math.tan(ball_disc_angle)*min(math.sqrt(pos[0]**2+pos[1]**2),90)
+    return base_height-math.tan(ball_disc_angle)*min(math.sqrt(pos[0]**2+pos[1]**2),100)
 
 th.Thread(target=key_capture_thread, args=(), name='key_capture_thread', daemon=True).start()
 
