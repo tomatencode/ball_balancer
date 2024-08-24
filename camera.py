@@ -153,7 +153,7 @@ if __name__ == "__main__":
 
     x, y =camera.get_ball_pos(save = True, use_cam = True, img = img)
     
-    if not x == None:
+    if not x == np.nan:
         print(f"x: {int(x)}, y: {int(y)}, dist: {np.sqrt(x**2 + y**2)}")
 
     del camera
