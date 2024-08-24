@@ -134,7 +134,7 @@ class Camera:
             angle_y_rad = np.radians(angle_y)
             
             # Known height of the ball above the camera plane
-            h = 130  # in mm
+            h = 140  # in mm
             
             # Compute real-world x and y using trigonometry
             real_x = h * np.tan(angle_x_rad)

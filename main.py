@@ -57,7 +57,7 @@ def get_ball_vel(pos_history):
     return v_x, v_y
 
 # calculates the height of the center of the plate to keep the ball at a constant one (looks cool)
-def calc_plate_height(x, y, slope_x, slope_y, base_height=110):
+def calc_plate_height(x, y, slope_x, slope_y, base_height=120):
     if x == 0:
         if y > 0:
             angle_ball_center = 90
@@ -113,15 +113,16 @@ while running:
             ball_on_plate = False
             print("ball fell off :(")
             
-        angle1, angle2, angle3 = calc_servo_positions(0, 0, 110)
+        angle1, angle2, angle3 = calc_servo_positions(0, 0, 120)
         servo1.angle = angle1
         servo2.angle = angle2
         servo3.angle = angle3
 
 # Cleanup
-servo1.angle = 0
-servo2.angle = 0
-servo3.angle = 0
+angle1, angle2, angle3 = calc_servo_positions(0, 0, 120)
+servo1.angle = angle1
+servo2.angle = angle2
+servo3.angle = angle3
 
 time.sleep(0.3)
 
