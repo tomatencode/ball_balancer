@@ -57,6 +57,14 @@ def get_ball_vel(pos_history):
         v_x, v_y = 0, 0
     return v_x, v_y
 
+def update_integral(integral_x, integral_y, error_x, error_y, dt):
+    integral_x += error_x * dt
+    integral_x = min(max(integral_x, -max_integral), max_integral)
+    
+    integral_y += error_y * dt
+    integral_y = min(max(integral_y, -max_integral), max_integral)
+    return integral_x, integral_y
+
 def cap_normal_vector(normal_vector, max_angle):
     # Calculate the max length of the projection onto the XY plane
     max_xy_projection = math.acos(max_angle)
@@ -95,6 +103,7 @@ def calc_plate_height(x, y, disc_normal, base_height=120):
     return base_height-math.tan(ball_disc_angle)*min(math.sqrt(x**2+y**2),100)
 
 th.Thread(target=key_capture_thread, args=(), name='key_capture_thread', daemon=True).start()
+
 while running:
     
     x, y = camera.get_ball_pos()
@@ -110,14 +119,13 @@ while running:
         
         record_hisory(x, y, pos_history)
 
-        error_x = x  # target position is 0,0
-        error_y = y
-
-        integral_x += error_x * dt
-        integral_x = min(max(integral_x, -max_integral), max_integral)
+        target_x = 0
+        target_y = 0
         
-        integral_y += error_y * dt
-        integral_y = min(max(integral_y, -max_integral), max_integral)
+        error_x = x+target_x
+        error_y = y+target_y
+
+        integral_x, integral_y = update_integral(integral_x, integral_y, error_x, error_y, dt)
 
         v_x, v_y = get_ball_vel(pos_history)
         
