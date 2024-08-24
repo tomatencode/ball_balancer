@@ -1,14 +1,19 @@
 import cv2
 import numpy as np
+import time
 
 class Camera:
 
     def __init__(self) -> None:
         self.__cap = cv2.VideoCapture(0)
-        self.__cap.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
-        self.__cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 240)
+        self.__cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+        self.__cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
+        before = time.time()
         ret, frame = self.__cap.read()
+        after = time.time()
+        
+        print(f"capture took {int((after-before)*1000)}ms")
 
         if not ret:
             raise Exception("Could not read camera")
@@ -76,6 +81,8 @@ class Camera:
                 raise Exception("Could not read camera")
         else:
             frame = img
+            
+        frame = cv2.resize(frame, (320, 240), interpolation= cv2.INTER_LINEAR)
 
         hsv = self.preprocess_frame(frame, save)
         mask = self.create_mask(hsv, save)
@@ -100,13 +107,44 @@ class Camera:
 
         return None, None
 
+
     def get_ball_pos(self, save=False, use_cam=True, img=None):
+        # Get the ball's position in the image frame
         x_in_frame, y_in_frame = self.get_ball_pos_in_frame(save=save, use_cam=use_cam, img=img)
+        
         if x_in_frame is not None:
-            y = x_in_frame - 164
-            x = y_in_frame - 120
-            y = -y
-            return x, y
+            # Image dimensions
+            frame_width = 320  # Adjust if using a different resolution
+            frame_height = 240  # Adjust if using a different resolution
+            
+            frame_center_x = 168
+            frame_center_y = 122
+            
+            # Camera parameters
+            fov_x = 140  # Field of view in degrees for the width
+            fov_y = fov_x * (frame_height / frame_width)  # Calculate vertical FOV
+
+
+            # Convert pixel positions to angles
+            angle_x = (x_in_frame - frame_center_x) * (fov_x / frame_width)
+            angle_y = (y_in_frame - frame_center_y) * (fov_y / frame_height)
+            
+            # Convert angles from degrees to radians for trigonometric functions
+            angle_x_rad = np.radians(angle_x)
+            angle_y_rad = np.radians(angle_y)
+            
+            # Known height of the ball above the camera plane
+            h = 130  # in mm
+            
+            # Compute real-world x and y using trigonometry
+            real_x = h * np.tan(angle_x_rad)
+            real_y = h * np.tan(angle_y_rad)
+            
+            real_x_turned = real_y
+            real_y_turned = real_x
+            
+            return real_x_turned, real_y_turned
+        
         return None, None
 
     def __del__(self):
@@ -117,6 +155,9 @@ if __name__ == "__main__":
 
     img = cv2.imread("/home/simon/scr/preprocessd_frame.png")
 
-    camera.get_ball_pos(save = True, use_cam = True, img = img)
+    x, y =camera.get_ball_pos(save = True, use_cam = True, img = img)
+    
+    if not x == None:
+        print(f"x: {int(x)}, y: {int(y)}, dist: {np.sqrt(x**2 + y**2)}")
 
     del camera
