@@ -13,7 +13,7 @@ class Camera:
         if not ret:
             raise Exception("Could not read camera")
 
-    def preprocess_frame(self, frame):
+    def preprocess_frame(self, frame, save):
         """ Preprocess the frame to handle lighting and color adjustments. """
         # Adjust gamma to handle lighting conditions
         adjusted_frame = cv2.xphoto.createSimpleWB().balanceWhite(frame)
@@ -21,12 +21,15 @@ class Camera:
         # Convert to HSV color space
         hsv = cv2.cvtColor(adjusted_frame, cv2.COLOR_BGR2HSV)
         hsv[:, :, 2] = cv2.equalizeHist(hsv[:, :, 2])
+        
+        if save:
+            cv2.imwrite("preprocessd_frame.png", cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR))
 
         return hsv
 
-    def create_mask(self, hsv):
+    def create_mask(self, hsv, save):
         """ Create a mask for detecting the orange ball. """
-        lower_orange1 = np.array([0, 110, 136])
+        lower_orange1 = np.array([0, 150, 136])
         upper_orange1 = np.array([13, 255, 255])
         mask1 = cv2.inRange(hsv, lower_orange1, upper_orange1)
 
@@ -40,6 +43,10 @@ class Camera:
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (11, 11))
         mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
         mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+        
+        if save:
+            cv2.imwrite("mask1.png", mask1)
+            cv2.imwrite("mask2.png", mask2)
 
         return mask
 
@@ -70,8 +77,8 @@ class Camera:
         else:
             frame = img
 
-        hsv = self.preprocess_frame(frame)
-        mask = self.create_mask(hsv)
+        hsv = self.preprocess_frame(frame, save)
+        mask = self.create_mask(hsv, save)
 
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
@@ -81,13 +88,15 @@ class Camera:
 
             if x is not None:
                 if save:
-                    contour_image = frame.copy()
-                    cv2.drawContours(contour_image, contours[0], -1, (0, 255, 0), 2)
                     cv2.ellipse(frame, ellipse, (0, 255, 0), 2)
                     cv2.circle(frame, (int(x), int(y)), 3, (0, 0, 255), -1)
                     cv2.imwrite("Detected_Circles.png", frame)
                     cv2.imwrite("mask.png", mask)
                 return x, y
+        
+        if save:
+            cv2.imwrite("Detected_Circles.png", frame)
+            cv2.imwrite("mask.png", mask)
 
         return None, None
 
@@ -106,8 +115,8 @@ class Camera:
 if __name__ == "__main__":
     camera = Camera()
 
-    img = cv2.imread("/home/simon/src/ball_balancer-1/adjusted_frame.png")
+    img = cv2.imread("/home/simon/scr/preprocessd_frame.png")
 
-    camera.get_ball_pos(save = True, use_cam = False, img = img)
+    camera.get_ball_pos(save = True, use_cam = True, img = img)
 
     del camera
