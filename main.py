@@ -25,8 +25,7 @@ max_integral = 120  # Limit for integral term
 # State variables
 pos_history = []
 history_len = 2
-integral_x = 0
-integral_y = 0
+integral = np.array([0.0,0.0])
 last_time = time.time()
 
 # Flags
@@ -40,30 +39,26 @@ def key_capture_thread():
     running = False
 
 # saves the balls position
-def record_hisory(x, y, pos_history):
-    pos_history.insert(0, [x, y, time.time()])
+def record_hisory(pos, pos_history):
+    pos_history.insert(0, [pos, time.time()])
     while len(pos_history) > history_len:
         pos_history.pop(history_len)
 
 # Get ball velocity
 def get_ball_vel(pos_history):
     if len(pos_history) == history_len:
-        x_diff = pos_history[0][0] - pos_history[history_len-1][0]
-        y_diff = pos_history[0][1] - pos_history[history_len-1][1]
-        dt = time.time() - pos_history[history_len-1][2]
-        v_x = x_diff/dt
-        v_y = y_diff/dt
+        diff = pos_history[0][0] - pos_history[history_len-1][0]
+        dt = time.time() - pos_history[history_len-1][1]
+        vel = diff/dt
     else:
-        v_x, v_y = 0, 0
-    return v_x, v_y
+        vel = np.array([0.0,0.0])
+    return vel
 
-def update_integral(integral_x, integral_y, error_x, error_y, dt):
-    integral_x += error_x * dt
-    integral_x = min(max(integral_x, -max_integral), max_integral)
+def update_integral(integral, error, dt):
+    integral += error * dt
+    integral = np.clip(integral, -max_integral, max_integral)
     
-    integral_y += error_y * dt
-    integral_y = min(max(integral_y, -max_integral), max_integral)
-    return integral_x, integral_y
+    return integral
 
 def cap_normal_vector(normal_vector, max_angle):
     # Calculate the max length of the projection onto the XY plane
@@ -85,30 +80,30 @@ def cap_normal_vector(normal_vector, max_angle):
     return normal_vector
 
 # calculates the height of the center of the plate to keep the ball at a constant one (looks cool)
-def calc_plate_height(x, y, disc_normal, base_height=120):
-    if x == 0:
-        if y > 0:
+def calc_plate_height(pos, disc_normal, base_height=120):
+    if pos[0] == 0:
+        if pos[1] > 0:
             angle_ball_center = 90
-        elif y < 0:
+        elif pos[1] < 0:
             angle_ball_center = 270
         else:
             angle_ball_center = 0
-    elif x > 0:
-        angle_ball_center = math.atan(y/x)
+    elif pos[0] > 0:
+        angle_ball_center = math.atan(pos[1]/pos[0])
     else:
-        angle_ball_center = math.atan(y/x) + math.radians(180)
+        angle_ball_center = math.atan(pos[1]/pos[0]) + math.radians(180)
     
     ball_disc_angle = angle_disc_and_rotated_axis(disc_normal, angle_ball_center)
     
-    return base_height-math.tan(ball_disc_angle)*min(math.sqrt(x**2+y**2),100)
+    return base_height-math.tan(ball_disc_angle)*min(math.sqrt(pos[0]**2+pos[1]**2),90)
 
 th.Thread(target=key_capture_thread, args=(), name='key_capture_thread', daemon=True).start()
 
 while running:
     
-    x, y = camera.get_ball_pos()
+    pos = camera.get_ball_pos()
     
-    if x is not None and y is not None: # if camera sees the ball
+    if not np.isnan(pos).all(): # if camera sees the ball
         if not ball_on_plate:
             ball_on_plate = True
             print("back on :D")
@@ -117,26 +112,23 @@ while running:
         dt = current_time - last_time
         last_time = current_time
         
-        record_hisory(x, y, pos_history)
+        record_hisory(pos, pos_history)
 
-        target_x = 0
-        target_y = 0
+        target = np.array([0.0,0.0])
         
-        error_x = x+target_x
-        error_y = y+target_y
+        error = pos+target
 
-        integral_x, integral_y = update_integral(integral_x, integral_y, error_x, error_y, dt)
+        integral = update_integral(integral, error, dt)
 
-        v_x, v_y = get_ball_vel(pos_history)
+        vel = get_ball_vel(pos_history)
         
-        slope_x = p*error_x + i*integral_x + d*v_x
-        slope_y = p*error_y + i*integral_y + d*v_y
+        slope = p*error + i*integral + d*vel
         
-        disc_normal = normal_vector_from_projections(math.radians(slope_x), math.radians(slope_y))
+        disc_normal = normal_vector_from_projections(math.radians(slope[0]), math.radians(slope[1]))
         
         disc_normal = cap_normal_vector(disc_normal, math.radians(10))
         
-        height = calc_plate_height(x,y,disc_normal)
+        height = calc_plate_height(pos,disc_normal)
         
         angle1, angle2, angle3 = calc_servo_positions(disc_normal, height)
         servo1.angle = angle1

@@ -139,9 +139,9 @@ class Camera:
             real_x_rortated = real_y
             real_y_rortated = -real_x
             
-            return real_x_rortated, real_y_rortated
+            return np.array([real_x_rortated, real_y_rortated])
         
-        return None, None
+        return np.array([np.nan, np.nan])
 
     def __del__(self):
         self.__cap.release()
