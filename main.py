@@ -22,6 +22,17 @@ i = 0.0006
 d = 0.0008
 max_integral = 120  # Limit for integral term
 
+# Middle
+path = np.array([
+    [0.0,0.0,0.0]
+                 ])
+
+# Line
+#path = np.array([
+#    [0.0,50.0,0],
+#    [0.0,50.0,8]
+#                 ])
+
 # State variables
 pos_history = []
 history_len = 2
@@ -44,6 +55,17 @@ def record_hisory(pos, pos_history):
     while len(pos_history) > history_len:
         pos_history.pop(history_len)
 
+def set_target_postion(time_running, path):
+    if len(path) == 1:
+        wp_inx = 0
+    else:
+        # gets the closest waypoint
+        wp_inx = (np.abs(path[:,2] - time_running%path[-1][2])).argmin()
+    
+    target_pos = path[wp_inx][:2]
+    
+    return target_pos
+
 # Get ball velocity
 def get_ball_vel(pos_history):
     if len(pos_history) == history_len:
@@ -54,6 +76,7 @@ def get_ball_vel(pos_history):
         vel = np.array([0.0,0.0])
     return vel
 
+# updates integal term
 def update_integral(integral, error, dt):
     integral += error * dt
     integral = np.clip(integral, -max_integral, max_integral)
@@ -99,6 +122,7 @@ def calc_plate_height(pos, disc_normal, base_height=120):
 
 th.Thread(target=key_capture_thread, args=(), name='key_capture_thread', daemon=True).start()
 
+time_started = time.time()
 while running:
     
     pos = camera.get_ball_pos()
@@ -110,13 +134,15 @@ while running:
         
         current_time = time.time()
         dt = current_time - last_time
+        time_running = current_time - time_started
+        
         last_time = current_time
         
         record_hisory(pos, pos_history)
 
-        target = np.array([0.0,0.0])
+        target_pos = set_target_postion(time_running, path)
         
-        error = pos+target
+        error = pos-target_pos
 
         integral = update_integral(integral, error, dt)
 
