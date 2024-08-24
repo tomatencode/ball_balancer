@@ -17,9 +17,9 @@ servo3 = Servo(22, 90, 180, 2.5, 12.5)
 camera = Camera()
 
 # PID parameters
-p = 0.11
-i = 0.04
-d = 0.06
+p = 0.0018
+i = 0.0006
+d = 0.0008
 max_integral = 120  # Limit for integral term
 
 # State variables
@@ -122,9 +122,12 @@ while running:
 
         vel = get_ball_vel(pos_history)
         
-        slope = p*error + i*integral + d*vel
+        wanted_accseleration = p*error + i*integral + d*vel
         
-        disc_normal = normal_vector_from_projections(math.radians(slope[0]), math.radians(slope[1]))
+        slope = np.arcsin(np.clip(wanted_accseleration,-0.5, 0.5))
+        
+        
+        disc_normal = normal_vector_from_projections(slope[0], slope[1])
         
         disc_normal = cap_normal_vector(disc_normal, math.radians(15))
         
