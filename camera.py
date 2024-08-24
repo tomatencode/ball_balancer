@@ -140,10 +140,10 @@ class Camera:
             real_x = h * np.tan(angle_x_rad)
             real_y = h * np.tan(angle_y_rad)
             
-            real_x_turned = real_y
-            real_y_turned = real_x
+            real_x_rortated = real_y
+            real_y_rortated = -real_x
             
-            return real_x_turned, real_y_turned
+            return real_x_rortated, real_y_rortated
         
         return None, None
 
