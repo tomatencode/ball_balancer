@@ -126,7 +126,7 @@ while running:
         
         disc_normal = normal_vector_from_projections(math.radians(slope[0]), math.radians(slope[1]))
         
-        disc_normal = cap_normal_vector(disc_normal, math.radians(10))
+        disc_normal = cap_normal_vector(disc_normal, math.radians(15))
         
         height = calc_plate_height(pos,disc_normal)
         
