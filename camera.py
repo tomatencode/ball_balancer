@@ -9,11 +9,7 @@ class Camera:
         self.__cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
         self.__cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
-        before = time.time()
         ret, frame = self.__cap.read()
-        after = time.time()
-        
-        print(f"capture took {int((after-before)*1000)}ms")
 
         if not ret:
             raise Exception("Could not read camera")
