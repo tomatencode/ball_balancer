@@ -99,8 +99,8 @@ while running:
         slope_x = p*error_x + i*integral_x + d*v_x
         slope_y = p*error_y + i*integral_y + d*v_y
         
-        slope_x = min(max(slope_x, -20), 20)
-        slope_y = min(max(slope_y, -20), 20)
+        slope_x = min(max(slope_x, -15), 15)
+        slope_y = min(max(slope_y, -15), 15)
         
         height = calc_plate_height(x,y,slope_x,slope_y)
         
