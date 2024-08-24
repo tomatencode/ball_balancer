@@ -68,7 +68,7 @@ def calc_leg(angle, height):
     delta = math.radians(90)-delta1 + angle
     arm_len = math.sqrt(dist_servo_disc**2+disc_radius**2-2*dist_servo_disc*disc_radius*math.cos(delta))
     alpha2 = math.asin(disc_radius*math.sin(delta)/arm_len)
-    arm_len = min(arm_len,lower_arm_len+upper_arm_len-1)
+    arm_len = max(min(arm_len,lower_arm_len+upper_arm_len-1), upper_arm_len-lower_arm_len+1)
     alpha3 = math.acos((arm_len**2+lower_arm_len**2-upper_arm_len**2)/(2*arm_len*lower_arm_len))
     alpha = math.radians(180) - (alpha1+alpha2+alpha3)
     
