@@ -30,7 +30,7 @@ class Camera:
 
     def create_mask(self, hsv, save):
         """ Create a mask for detecting the orange ball. """
-        lower_orange1 = np.array([0, 150, 136])
+        lower_orange1 = np.array([0, 150, 195])
         upper_orange1 = np.array([13, 255, 255])
         mask1 = cv2.inRange(hsv, lower_orange1, upper_orange1)
 
