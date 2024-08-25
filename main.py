@@ -6,7 +6,7 @@ import numpy as np
 from inverse_kinimatics import calc_servo_positions, normal_vector_from_projections, angle_disc_and_rotated_axis
 from servo import Servo
 from camera import Camera
-from paths import middle, line_path, random_path
+from paths import middle, line_path, circle_path, random_path
 
 # GPIO setup
 GPIO.setmode(GPIO.BCM)
@@ -28,6 +28,7 @@ pos_history = []
 history_len = 2
 integral = np.array([0.0,0.0])
 last_time = time.time()
+target_pos = np.array([0.0,0.0])
 
 # Flags
 running = True
@@ -119,7 +120,7 @@ while running:
         
         record_hisory(pos, pos_history)
 
-        target_pos = middle()
+        target_pos = line_path(time_running)
         
         error = pos-target_pos
 
