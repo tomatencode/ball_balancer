@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 import time
+import subprocess
 
 class Camera:
 
@@ -8,30 +9,36 @@ class Camera:
         self.__cap = cv2.VideoCapture(0)
         self.__cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
         self.__cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+        subprocess.run(['v4l2-ctl', '--set-ctrl=auto_exposure=1'], check=True)
+        subprocess.run(['v4l2-ctl', '--set-ctrl=white_balance_automatic=0'], check=True)
+        
+        self.__exposure = 1000
+        self.set_camera_exposure(self.__exposure)
 
         ret, frame = self.__cap.read()
-
+        
         if not ret:
             raise Exception("Could not read camera")
 
-    def preprocess_frame(self, frame, save):
-        """ Preprocess the frame to handle lighting and color adjustments. """
-        # Adjust gamma to handle lighting conditions
-        adjusted_frame = cv2.xphoto.createSimpleWB().balanceWhite(frame)
+    def set_camera_exposure(self, exposure_value):
+        subprocess.run(['v4l2-ctl', f'--set-ctrl=exposure_time_absolute={exposure_value}'], check=True)
+        self.__exposure = exposure_value
 
-        # Convert to HSV color space
-        hsv = cv2.cvtColor(adjusted_frame, cv2.COLOR_BGR2HSV)
-        hsv[:, :, 2] = cv2.equalizeHist(hsv[:, :, 2])
+    def preprocess_frame(self, frame, save):
+
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         
         if save:
-            cv2.imwrite("preprocessd_frame.png", cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR))
-
+            # currently there are no adjutions so it doesnt need to be saved
+            #cv2.imwrite("preprocessd_frame.png", cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR))
+            pass
         return hsv
+    
 
-    def create_mask(self, hsv, save):
+    def create_mask(self, hsv, save=False):
         """ Create a mask for detecting the orange ball. """
         lower_orange1 = np.array([0, 150, 195])
-        upper_orange1 = np.array([13, 255, 255])
+        upper_orange1 = np.array([35, 255, 255])
         mask1 = cv2.inRange(hsv, lower_orange1, upper_orange1)
 
         lower_orange2 = np.array([9, 16, 233])
@@ -46,13 +53,16 @@ class Camera:
         mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
         
         if save:
+            cv2.imwrite("mask.png", mask)
             cv2.imwrite("mask1.png", mask1)
             cv2.imwrite("mask2.png", mask2)
 
-        return mask
+        else:
+            return mask
 
-    def find_largest_contour(self, contours, min_contour_area):
+    def find_ball_in_contours(self, contours):
         """ Find the largest valid contour based on area and shape metrics. """
+        min_contour_area=600
         for contour in contours:
             if cv2.contourArea(contour) > min_contour_area:
                 # Fit an ellipse to the contour
@@ -66,7 +76,7 @@ class Camera:
                 eccentricity = np.sqrt(1 - (MA**2 / ma**2)) if ma > 0 else 0
 
                 # Check if the ellipse meets the conditions
-                if 0.65 <= aspect_ratio <= 1.3 and solidity > 0.9 and eccentricity < 0.75:
+                if 0.6 <= aspect_ratio <= 1.4 and solidity > 0.85 and eccentricity < 0.8:
                     return (x, y), ellipse
         return (None, None), None
 
@@ -85,21 +95,17 @@ class Camera:
 
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-        if contours:
-            min_contour_area = 600  # Adjust based on the expected size of the ball
-            (x, y), ellipse = self.find_largest_contour(contours, min_contour_area)
+        (x, y), ellipse = self.find_ball_in_contours(contours)
 
-            if x is not None:
-                if save:
-                    cv2.ellipse(frame, ellipse, (0, 255, 0), 2)
-                    cv2.circle(frame, (int(x), int(y)), 3, (0, 0, 255), -1)
-                    cv2.imwrite("Detected_Circles.png", frame)
-                    cv2.imwrite("mask.png", mask)
-                return x, y
+        if x is not None:
+            if save:
+                cv2.ellipse(frame, ellipse, (0, 255, 0), 2)
+                cv2.circle(frame, (int(x), int(y)), 3, (0, 0, 255), -1)
+                cv2.imwrite("Detected_Circles.png", frame)
+            return x, y
         
         if save:
             cv2.imwrite("Detected_Circles.png", frame)
-            cv2.imwrite("mask.png", mask)
 
         return None, None
 
@@ -149,11 +155,15 @@ class Camera:
 if __name__ == "__main__":
     camera = Camera()
 
-    img = cv2.imread("/home/simon/scr/preprocessd_frame.png")
-
-    pos =camera.get_ball_pos(save = True, use_cam = True, img = img)
+    while True:
+        camera.adjust_exposure_time()
     
-    if not np.isnan(pos).all():
-        print(f"x: {int(pos[0])}, y: {int(pos[1])}, dist: {np.sqrt(pos[0]**2 + pos[1]**2)}")
+
+    #img = cv2.imread("/home/simon/scr/preprocessd_frame.png")
+
+    #pos = camera.get_ball_pos(save = True, use_cam = True, img = img)
+    
+    #if not np.isnan(pos).all():
+    #    print(f"x: {int(pos[0])}, y: {int(pos[1])}, dist: {np.sqrt(pos[0]**2 + pos[1]**2)}")
 
     del camera
