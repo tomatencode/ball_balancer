@@ -35,7 +35,7 @@ class Camera:
         mask1 = cv2.inRange(hsv, lower_orange1, upper_orange1)
 
         lower_orange2 = np.array([9, 16, 233])
-        upper_orange2 = np.array([23, 220, 255])
+        upper_orange2 = np.array([35, 220, 255])
         mask2 = cv2.inRange(hsv, lower_orange2, upper_orange2)
 
         mask = cv2.bitwise_or(mask1, mask2)
@@ -151,9 +151,9 @@ if __name__ == "__main__":
 
     img = cv2.imread("/home/simon/scr/preprocessd_frame.png")
 
-    x, y =camera.get_ball_pos(save = True, use_cam = True, img = img)
+    pos =camera.get_ball_pos(save = True, use_cam = True, img = img)
     
-    if not x == np.nan:
-        print(f"x: {int(x)}, y: {int(y)}, dist: {np.sqrt(x**2 + y**2)}")
+    if not np.isnan(pos).all():
+        print(f"x: {int(pos[0])}, y: {int(pos[1])}, dist: {np.sqrt(pos[0]**2 + pos[1]**2)}")
 
     del camera
