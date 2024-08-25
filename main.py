@@ -6,6 +6,7 @@ import numpy as np
 from inverse_kinimatics import calc_servo_positions, normal_vector_from_projections, angle_disc_and_rotated_axis
 from servo import Servo
 from camera import Camera
+from paths import middle, line_path, random_path
 
 # GPIO setup
 GPIO.setmode(GPIO.BCM)
@@ -21,17 +22,6 @@ p = 0.0018
 i = 0.0006
 d = 0.0008
 max_integral = 120  # Limit for integral term
-
-# Middle
-path = np.array([
-    [0.0,0.0,0.0]
-                 ])
-
-# Line
-#path = np.array([
-#    [0.0,50.0,0],
-#    [0.0,50.0,8]
-#                 ])
 
 # State variables
 pos_history = []
@@ -54,17 +44,6 @@ def record_hisory(pos, pos_history):
     pos_history.insert(0, [pos, time.time()])
     while len(pos_history) > history_len:
         pos_history.pop(history_len)
-
-def set_target_postion(time_running, path):
-    if len(path) == 1:
-        wp_inx = 0
-    else:
-        # gets the closest waypoint
-        wp_inx = (np.abs(path[:,2] - time_running%path[-1][2])).argmin()
-    
-    target_pos = path[wp_inx][:2]
-    
-    return target_pos
 
 # Get ball velocity
 def get_ball_vel(pos_history):
@@ -140,7 +119,7 @@ while running:
         
         record_hisory(pos, pos_history)
 
-        target_pos = set_target_postion(time_running, path)
+        target_pos = middle()
         
         error = pos-target_pos
 
