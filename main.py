@@ -7,6 +7,7 @@ from inverse_kinimatics import calc_servo_positions, normal_vector_from_projecti
 from servo import Servo
 from camera import Camera
 from paths import middle, line_path, circle_path, random_path
+from kalman_filter import KalmanFilter
 
 # GPIO setup
 GPIO.setmode(GPIO.BCM)
@@ -16,6 +17,7 @@ servo1 = Servo(17, 77.3, 180, 2.5, 12.5)
 servo2 = Servo(27, 69.5, 180, 2.5, 12.5)
 servo3 = Servo(22, 90, 180, 2.5, 12.5)
 camera = Camera()
+kalman_filter = KalmanFilter(process_variance=0.2, measurement_variance=0.8)
 
 # PID parameters
 p = 0.0018
@@ -127,8 +129,9 @@ while running:
         integral = update_integral(integral, error, dt)
 
         vel = get_ball_vel(pos_history)
+        filtered_vel = kalman_filter.update(vel)
         
-        wanted_accseleration = p*error + i*integral + d*vel
+        wanted_accseleration = p*error + i*integral + d*filtered_vel
         
         slope = np.arcsin(np.clip(wanted_accseleration,-0.5, 0.5))
         
