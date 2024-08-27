@@ -2,6 +2,7 @@ import RPi.GPIO as GPIO
 import threading as th
 import time
 import math
+import json
 import numpy as np
 from inverse_kinimatics import calc_servo_positions, normal_vector_from_projections, angle_disc_and_rotated_axis
 from servo import Servo
@@ -31,6 +32,13 @@ history_len = 2
 integral = np.array([0.0,0.0])
 last_time = time.time()
 target_pos = np.array([0.0,0.0])
+ball_acceleration = np.array([0.0,0.0])
+
+time_steps = []
+measured_positions = []
+estimated_positions = []
+measured_velocetys = []
+estimated_velocetys = []
 
 # Flags
 running = True
@@ -129,9 +137,20 @@ while running:
         integral = update_integral(integral, error, dt)
 
         vel = get_ball_vel(pos_history)
-        filtered_vel = kalman_filter.update(vel)
+        estimated_pos, estimated_vel = kalman_filter.update(np.array([pos[0], pos[1], vel[0, vel[1]]]), ball_acceleration, dt)
         
-        wanted_accseleration = p*error + i*integral + d*filtered_vel
+        if len(time_steps) == 0:
+            time_steps.append(dt)
+        else:
+            time_steps.append(dt - time_steps[-1])
+        
+        measured_positions.append(pos)
+        estimated_positions.append(estimated_pos)
+        measured_velocetys.append(vel)
+        estimated_velocetys.append(estimated_vel)
+        
+        
+        wanted_accseleration = p*error + i*integral + d*estimated_vel
         
         slope = np.arcsin(np.clip(wanted_accseleration,-0.5, 0.5))
         
@@ -169,3 +188,18 @@ del servo1
 del servo2
 del servo3
 GPIO.cleanup()
+
+
+# Save data to JSON
+data = {
+    'time_steps': time_steps,
+    
+    'measured_positions': measured_positions,
+    'estimated_positions': estimated_positions,
+
+    'measured_velocetys': measured_velocetys,
+    'estimated_velocetys': estimated_velocetys
+}
+
+with open('data.json', 'w') as f:
+    json.dump(data, f)

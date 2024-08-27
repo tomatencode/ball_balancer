@@ -1,42 +1,49 @@
 import cv2
 import numpy as np
-import time
 import subprocess
 
 class Camera:
-
     def __init__(self) -> None:
+        """Initialize the camera and set initial properties."""
         self.__cap = cv2.VideoCapture(0)
+        
+        if not self.__cap.isOpened():
+            raise Exception("Could not open camera")
+
         self.__cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
         self.__cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-        subprocess.run(['v4l2-ctl', '--set-ctrl=auto_exposure=1'], check=True)
-        subprocess.run(['v4l2-ctl', '--set-ctrl=white_balance_automatic=0'], check=True)
-        
+
         self.__exposure = 1000
         self.set_camera_exposure(self.__exposure)
 
-        ret, frame = self.__cap.read()
-        
+        # Ensure initial frame capture
+        self.__validate_camera()
+
+    def __validate_camera(self):
+        """Validate that the camera is working by capturing a frame."""
+        ret, _ = self.__cap.read()
         if not ret:
-            raise Exception("Could not read camera")
+            self.__cap.release()
+            raise Exception("Could not read from camera")
 
     def set_camera_exposure(self, exposure_value):
-        subprocess.run(['v4l2-ctl', f'--set-ctrl=exposure_time_absolute={exposure_value}'], check=True)
-        self.__exposure = exposure_value
+        """Set the camera exposure time."""
+        try:
+            subprocess.run(['v4l2-ctl', f'--set-ctrl=exposure_time_absolute={exposure_value}'], check=True)
+            self.__exposure = exposure_value
+        except subprocess.CalledProcessError as e:
+            raise Exception(f"Failed to set exposure: {e}")
 
-    def preprocess_frame(self, frame, save):
-
+    def preprocess_frame(self, frame, save=False):
+        """Convert frame to HSV color space."""
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-        
         if save:
-            # currently there are no adjutions so it doesnt need to be saved
-            #cv2.imwrite("preprocessd_frame.png", cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR))
+            # Save preprocessed frame if needed
             pass
         return hsv
-    
 
     def create_mask(self, hsv, save=False):
-        """ Create a mask for detecting the orange ball. """
+        """Create a mask for detecting the orange ball."""
         lower_orange1 = np.array([0, 150, 195])
         upper_orange1 = np.array([35, 255, 255])
         mask1 = cv2.inRange(hsv, lower_orange1, upper_orange1)
@@ -46,26 +53,21 @@ class Camera:
         mask2 = cv2.inRange(hsv, lower_orange2, upper_orange2)
 
         mask = cv2.bitwise_or(mask1, mask2)
-
-        # Apply morphological operations with the elliptical kernel
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (11, 11))
         mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
         mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
-        
+
         if save:
             cv2.imwrite("mask.png", mask)
             cv2.imwrite("mask1.png", mask1)
             cv2.imwrite("mask2.png", mask2)
-
-        else:
-            return mask
+        return mask
 
     def find_ball_in_contours(self, contours):
-        """ Find the largest valid contour based on area and shape metrics. """
-        min_contour_area=600
+        """Find the largest valid contour and fit an ellipse."""
+        min_contour_area = 600
         for contour in contours:
             if cv2.contourArea(contour) > min_contour_area:
-                # Fit an ellipse to the contour
                 ellipse = cv2.fitEllipse(contour)
                 (x, y), (MA, ma), angle = ellipse
 
@@ -75,26 +77,24 @@ class Camera:
                 solidity = contour_area / hull_area
                 eccentricity = np.sqrt(1 - (MA**2 / ma**2)) if ma > 0 else 0
 
-                # Check if the ellipse meets the conditions
                 if 0.6 <= aspect_ratio <= 1.4 and solidity > 0.85 and eccentricity < 0.8:
                     return (x, y), ellipse
         return (None, None), None
 
     def get_ball_pos_in_frame(self, save=False, use_cam=True, img=None):
+        """Get the ball's position in the image frame."""
         if use_cam:
             ret, frame = self.__cap.read()
             if not ret:
                 raise Exception("Could not read camera")
         else:
             frame = img
-            
-        frame = cv2.resize(frame, (320, 240), interpolation= cv2.INTER_LINEAR)
 
+        frame = cv2.resize(frame, (320, 240), interpolation=cv2.INTER_LINEAR)
         hsv = self.preprocess_frame(frame, save)
         mask = self.create_mask(hsv, save)
 
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
         (x, y), ellipse = self.find_ball_in_contours(contours)
 
         if x is not None:
@@ -103,42 +103,33 @@ class Camera:
                 cv2.circle(frame, (int(x), int(y)), 3, (0, 0, 255), -1)
                 cv2.imwrite("Detected_Circles.png", frame)
             return x, y
-        
+
         if save:
             cv2.imwrite("Detected_Circles.png", frame)
-
         return None, None
 
-
     def get_ball_pos(self, save=False, use_cam=True, img=None):
-        # Get the ball's position in the image frame
+        """Get the real-world position of the ball."""
         x_in_frame, y_in_frame = self.get_ball_pos_in_frame(save=save, use_cam=use_cam, img=img)
         
         if x_in_frame is not None:
-            # Image dimensions
-            frame_width = 320  # Adjust if using a different resolution
-            frame_height = 240  # Adjust if using a different resolution
+            frame_width = 320
+            frame_height = 240
             
             frame_center_x = 168
             frame_center_y = 122
             
-            # Camera parameters
-            fov_x = 140  # Field of view in degrees for the width
-            fov_y = fov_x * (frame_height / frame_width)  # Calculate vertical FOV
+            fov_x = 140
+            fov_y = fov_x * (frame_height / frame_width)
 
-
-            # Convert pixel positions to angles
             angle_x = (x_in_frame - frame_center_x) * (fov_x / frame_width)
             angle_y = (y_in_frame - frame_center_y) * (fov_y / frame_height)
-            
-            # Convert angles from degrees to radians for trigonometric functions
+
             angle_x_rad = np.radians(angle_x)
             angle_y_rad = np.radians(angle_y)
             
-            # Known height of the ball above the camera plane
-            h = 140  # in mm
-            
-            # Compute real-world x and y using trigonometry
+            h = 140
+
             real_x = h * np.tan(angle_x_rad)
             real_y = h * np.tan(angle_y_rad)
             
@@ -150,20 +141,21 @@ class Camera:
         return np.array([np.nan, np.nan])
 
     def __del__(self):
+        """Release the camera resource."""
+        if self.__cap.isOpened():
+            self.__cap.release()
+
+    def __del__(self):
         self.__cap.release()
 
 if __name__ == "__main__":
     camera = Camera()
-
-    while True:
-        camera.adjust_exposure_time()
     
+    img = cv2.imread("/home/simon/scr/preprocessd_frame.png")
 
-    #img = cv2.imread("/home/simon/scr/preprocessd_frame.png")
-
-    #pos = camera.get_ball_pos(save = True, use_cam = True, img = img)
+    pos = camera.get_ball_pos(save = True, use_cam = True, img = img)
     
-    #if not np.isnan(pos).all():
-    #    print(f"x: {int(pos[0])}, y: {int(pos[1])}, dist: {np.sqrt(pos[0]**2 + pos[1]**2)}")
+    if not np.isnan(pos).all():
+        print(f"x: {int(pos[0])}, y: {int(pos[1])}, dist: {np.sqrt(pos[0]**2 + pos[1]**2)}")
 
     del camera
