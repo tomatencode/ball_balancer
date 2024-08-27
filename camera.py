@@ -1,6 +1,5 @@
 import cv2
 import numpy as np
-import time
 import subprocess
 
 class Camera:
@@ -23,6 +22,51 @@ class Camera:
     def set_camera_exposure(self, exposure_value):
         subprocess.run(['v4l2-ctl', f'--set-ctrl=exposure_time_absolute={exposure_value}'], check=True)
         self.__exposure = exposure_value
+
+    def analyze_exposure_in_mask(self, mask, frame):
+        """
+        Analyze the exposure level within the masked region.
+        Returns the ratios of overexposed and underexposed pixels.
+        """
+        # Apply the mask to the frame to get the relevant region
+        masked_frame = cv2.bitwise_and(frame, frame, mask=mask)
+        gray_masked_frame = cv2.cvtColor(masked_frame, cv2.COLOR_BGR2GRAY)
+        
+        # Calculate histogram
+        hist = cv2.calcHist([gray_masked_frame], [0], None, [256], [0, 256])
+        hist = hist / hist.sum()  # Normalize the histogram
+        
+        # Define thresholds
+        overexposed_ratio = hist[230:].sum()  # Bright pixels
+        underexposed_ratio = hist[:25].sum()  # Dark pixels
+        
+        return overexposed_ratio, underexposed_ratio
+
+    def adjust_exposure(self, frame, ellipse):
+        """
+        Adjust the camera exposure based on the histogram analysis of the masked area.
+        """
+        
+        mask = np.zeros((240, 320), dtype=np.uint8)
+            
+        # Unpack ellipse object
+        center, axes, rotation_angle = ellipse
+        center = (int(center[0]), int(center[1]))
+        axes = (int(axes[0] / 2), int(axes[1] / 2))  # Major and minor axes lengths
+        rotation_angle = int(rotation_angle)
+
+        # Draw the ellipse on the mask
+        cv2.ellipse(mask, center, axes, rotation_angle, 0, 360, 255, -1)
+
+        
+        overexposed_ratio, underexposed_ratio = self.analyze_exposure_in_mask(mask, frame)
+
+        if overexposed_ratio > 0.1:
+            print("Adjusting exposure down")
+            self.set_camera_exposure(max(self.__exposure - 50, 80))
+        elif underexposed_ratio > 0.1:
+            print("Adjusting exposure up")
+            self.set_camera_exposure(min(self.__exposure + 50, 2500))
 
     def preprocess_frame(self, frame, save):
 
@@ -80,7 +124,7 @@ class Camera:
                     return (x, y), ellipse
         return (None, None), None
 
-    def get_ball_pos_in_frame(self, save=False, use_cam=True, img=None):
+    def get_ball_pos_in_frame(self, save=False, use_cam=True, adjust_exposure=False, img=None):
         if use_cam:
             ret, frame = self.__cap.read()
             if not ret:
@@ -96,6 +140,9 @@ class Camera:
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
         (x, y), ellipse = self.find_ball_in_contours(contours)
+        
+        if adjust_exposure and not ellipse == None:
+            self.adjust_exposure(frame, ellipse)
 
         if x is not None:
             if save:
@@ -110,9 +157,9 @@ class Camera:
         return None, None
 
 
-    def get_ball_pos(self, save=False, use_cam=True, img=None):
+    def get_ball_pos(self, save=False, use_cam=True, adjust_exposure=False, img=None):
         # Get the ball's position in the image frame
-        x_in_frame, y_in_frame = self.get_ball_pos_in_frame(save=save, use_cam=use_cam, img=img)
+        x_in_frame, y_in_frame = self.get_ball_pos_in_frame(save=save, use_cam=use_cam, adjust_exposure=adjust_exposure, img=img)
         
         if x_in_frame is not None:
             # Image dimensions
@@ -155,15 +202,9 @@ class Camera:
 if __name__ == "__main__":
     camera = Camera()
 
-    while True:
-        camera.adjust_exposure_time()
+    pos = camera.get_ball_pos(save = True, adjust_exposure=True)
     
-
-    #img = cv2.imread("/home/simon/scr/preprocessd_frame.png")
-
-    #pos = camera.get_ball_pos(save = True, use_cam = True, img = img)
-    
-    #if not np.isnan(pos).all():
-    #    print(f"x: {int(pos[0])}, y: {int(pos[1])}, dist: {np.sqrt(pos[0]**2 + pos[1]**2)}")
+    if not np.isnan(pos).all():
+        print(f"x: {int(pos[0])}, y: {int(pos[1])}, dist: {np.sqrt(pos[0]**2 + pos[1]**2)}")
 
     del camera
