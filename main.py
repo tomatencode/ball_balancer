@@ -120,7 +120,7 @@ while running:
         
         record_hisory(pos, pos_history)
 
-        target_pos = line_path(time_running)
+        #target_pos = line_path(time_running)
         
         error = pos-target_pos
 
