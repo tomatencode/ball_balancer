@@ -5,7 +5,7 @@ import subprocess
 class Camera:
 
     def __init__(self) -> None:
-        self.__cap = cv2.VideoCapture(0)
+        self.__cap = cv2.VideoCapture(0, cv2.CAP_V4L2)
         self.__cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
         self.__cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
         subprocess.run(['v4l2-ctl', '--set-ctrl=auto_exposure=1'], check=True)
