@@ -175,7 +175,8 @@ class Camera:
         return np.array([np.nan, np.nan])
 
     def __del__(self):
-        self.__cap.release()
+        if self.__cap.isOpened():
+            self.__cap.release()
 
 if __name__ == "__main__":
     camera = Camera()
