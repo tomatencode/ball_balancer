@@ -24,11 +24,10 @@ d = 0.0008
 max_integral = 120  # Limit for integral term
 
 # State variables
-pos_history = []
-history_len = 2
+last_pos = np.array([np.nan, np.nan])
+target_pos = np.array([0.0,0.0])
 integral = np.array([0.0,0.0])
 last_time = time.time()
-target_pos = np.array([0.0,0.0])
 
 # Flags
 running = True
@@ -40,18 +39,11 @@ def key_capture_thread():
     input()
     running = False
 
-# saves the balls position
-def record_hisory(pos, pos_history):
-    pos_history.insert(0, [pos, time.time()])
-    while len(pos_history) > history_len:
-        pos_history.pop(history_len)
-
 # Get ball velocity
-def get_ball_vel(pos_history):
-    if len(pos_history) == history_len:
-        diff = pos_history[0][0] - pos_history[history_len-1][0]
-        dt = time.time() - pos_history[history_len-1][1]
-        vel = diff/dt
+def get_ball_vel(pos, last_pos, dt):
+    if not np.isnan(last_pos).all():
+        pos_diff = pos - last_pos
+        vel = pos_diff/dt
     else:
         vel = np.array([0.0,0.0])
     return vel
@@ -117,8 +109,6 @@ while running:
         time_running = current_time - time_started
         
         last_time = current_time
-        
-        record_hisory(pos, pos_history)
 
         #target_pos = line_path(time_running)
         
@@ -126,12 +116,13 @@ while running:
 
         integral = update_integral(integral, error, dt)
 
-        vel = get_ball_vel(pos_history)
+        vel = get_ball_vel(pos, last_pos, dt)
         
         wanted_accseleration = p*error + i*integral + d*vel
         
-        slope = np.arcsin(np.clip(wanted_accseleration,-0.5, 0.5))
+        last_pos = pos
         
+        slope = np.arcsin(np.clip(wanted_accseleration,-0.5, 0.5))
         
         disc_normal = normal_vector_from_projections(slope[0], slope[1])
         
@@ -147,6 +138,7 @@ while running:
         if ball_on_plate:
             ball_on_plate = False
             print("ball fell off :(")
+            camera.get_ball_pos(save=True)
             
         angle1, angle2, angle3 = calc_servo_positions([0,0,1], 120)
         servo1.angle = angle1
