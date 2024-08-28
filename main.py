@@ -118,6 +118,9 @@ while running:
 
         vel = get_ball_vel(pos, last_pos, dt)
         
+        if np.linalg.norm(pos) < 10 and np.linalg.norm(vel) < 20:
+            camera.get_ball_pos(adjust_exposure=True)
+        
         wanted_accseleration = p*error + i*integral + d*vel
         
         last_pos = pos
@@ -138,7 +141,6 @@ while running:
         if ball_on_plate:
             ball_on_plate = False
             print("ball fell off :(")
-            camera.get_ball_pos(save=True)
             
         angle1, angle2, angle3 = calc_servo_positions([0,0,1], 120)
         servo1.angle = angle1
