@@ -56,10 +56,8 @@ class Camera:
 
         if peak_value < 100:
             self.set_camera_exposure(min(self.__exposure + 10, 2500))
-            print(f"Adjusing exposure to {self.__exposure}, peak_bright {peak_value}")
         elif peak_value > 160:
             self.set_camera_exposure(max(self.__exposure - 10, 80))
-            print(f"Adjusing exposure to {self.__exposure}, peak_bright {peak_value}")
 
     def create_mask(self, hsv, save=False):
         """ Create a mask for detecting the orange ball. """

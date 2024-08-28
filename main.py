@@ -104,6 +104,7 @@ def calc_plate_height(pos, disc_normal, base_height=120):
 # Set up signal handling
 signal.signal(signal.SIGTERM, handle_signal)
 
+print("started script")
 time_started = time.time()
 try:
     while True:
@@ -113,7 +114,6 @@ try:
         if not np.isnan(pos).all(): # if camera sees the ball
             if not ball_on_plate:
                 ball_on_plate = True
-                print("back on :D")
             
             current_time = time.time()
             dt = current_time - last_time
@@ -151,7 +151,6 @@ try:
         else:
             if ball_on_plate:
                 ball_on_plate = False
-                print("ball fell off :(")
                 
             angle1, angle2, angle3 = calc_servo_positions([0,0,1], 120)
             servo1.angle = angle1
