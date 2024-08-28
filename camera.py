@@ -11,7 +11,7 @@ class Camera:
         subprocess.run(['v4l2-ctl', '--set-ctrl=auto_exposure=1'], check=True)
         subprocess.run(['v4l2-ctl', '--set-ctrl=white_balance_automatic=0'], check=True)
         
-        self.__exposure = 1000
+        self.__exposure = 200
         self.set_camera_exposure(self.__exposure)
 
         ret, frame = self.__cap.read()
@@ -23,24 +23,6 @@ class Camera:
         subprocess.run(['v4l2-ctl', f'--set-ctrl=exposure_time_absolute={exposure_value}'], check=True)
         self.__exposure = exposure_value
 
-    def analyze_exposure_in_mask(self, mask, frame):
-        """
-        Analyze the exposure level within the masked region.
-        Returns the ratios of overexposed and underexposed pixels.
-        """
-        # Apply the mask to the frame to get the relevant region
-        masked_frame = cv2.bitwise_and(frame, frame, mask=mask)
-        gray_masked_frame = cv2.cvtColor(masked_frame, cv2.COLOR_BGR2GRAY)
-        
-        # Calculate histogram
-        hist = cv2.calcHist([gray_masked_frame], [0], None, [256], [0, 256])
-        hist = hist / hist.sum()  # Normalize the histogram
-        
-        # Define thresholds
-        overexposed_ratio = hist[230:].sum()  # Bright pixels
-        underexposed_ratio = hist[:25].sum()  # Dark pixels
-        
-        return overexposed_ratio, underexposed_ratio
 
     def adjust_exposure(self, frame, ellipse):
         """
@@ -59,14 +41,27 @@ class Camera:
         cv2.ellipse(mask, center, axes, rotation_angle, 0, 360, 255, -1)
 
         
-        overexposed_ratio, underexposed_ratio = self.analyze_exposure_in_mask(mask, frame)
+        # Apply the mask to the frame to get the relevant region
+        masked_frame = cv2.bitwise_and(frame, frame, mask=mask)
+        gray_masked_frame = cv2.cvtColor(masked_frame, cv2.COLOR_BGR2GRAY)
+        
+        cv2.imwrite("masked_frame.png", masked_frame)
+        
+        # Only consider pixels within the mask (non-zero mask pixels)
+        masked_pixels = gray_masked_frame[mask > 0]
+        
+        # Calculate histogram only for masked pixels
+        hist = cv2.calcHist([masked_pixels], [0], None, [256], [0, 256])
+        hist = hist / hist.sum()  # Normalize the histogram
+        
+        peak_value = np.argmax(hist)
 
-        if overexposed_ratio > 0.1:
-            print("Adjusting exposure down")
-            self.set_camera_exposure(max(self.__exposure - 50, 80))
-        elif underexposed_ratio > 0.1:
-            print("Adjusting exposure up")
-            self.set_camera_exposure(min(self.__exposure + 50, 2500))
+        if peak_value < 110:
+            self.set_camera_exposure(min(self.__exposure + 10, 2500))
+            print(f"Adjusing exposure to {self.__exposure}, peak_bright {peak_value}")
+        elif peak_value > 150:
+            self.set_camera_exposure(max(self.__exposure - 10, 80))
+            print(f"Adjusing exposure to {self.__exposure}, peak_bright {peak_value}")
 
     def preprocess_frame(self, frame, save):
 
@@ -86,7 +81,7 @@ class Camera:
         mask1 = cv2.inRange(hsv, lower_orange1, upper_orange1)
 
         lower_orange2 = np.array([9, 16, 233])
-        upper_orange2 = np.array([35, 220, 255])
+        upper_orange2 = np.array([25, 220, 255])
         mask2 = cv2.inRange(hsv, lower_orange2, upper_orange2)
 
         mask = cv2.bitwise_or(mask1, mask2)
@@ -100,9 +95,8 @@ class Camera:
             cv2.imwrite("mask.png", mask)
             cv2.imwrite("mask1.png", mask1)
             cv2.imwrite("mask2.png", mask2)
-
-        else:
-            return mask
+        
+        return mask
 
     def find_ball_in_contours(self, contours):
         """ Find the largest valid contour based on area and shape metrics. """
@@ -202,7 +196,7 @@ class Camera:
 if __name__ == "__main__":
     camera = Camera()
 
-    pos = camera.get_ball_pos(save = True, adjust_exposure=True)
+    pos = camera.get_ball_pos(save = True)
     
     if not np.isnan(pos).all():
         print(f"x: {int(pos[0])}, y: {int(pos[1])}, dist: {np.sqrt(pos[0]**2 + pos[1]**2)}")
