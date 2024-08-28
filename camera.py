@@ -11,7 +11,7 @@ class Camera:
         subprocess.run(['v4l2-ctl', '--set-ctrl=auto_exposure=1'], check=True)
         subprocess.run(['v4l2-ctl', '--set-ctrl=white_balance_automatic=0'], check=True)
         
-        self.__exposure = 100
+        self.__exposure = 150
         self.set_camera_exposure(self.__exposure)
 
         ret, frame = self.__cap.read()
@@ -45,8 +45,6 @@ class Camera:
         masked_frame = cv2.bitwise_and(frame, frame, mask=mask)
         gray_masked_frame = cv2.cvtColor(masked_frame, cv2.COLOR_BGR2GRAY)
         
-        cv2.imwrite("masked_frame.png", masked_frame)
-        
         # Only consider pixels within the mask (non-zero mask pixels)
         masked_pixels = gray_masked_frame[mask > 0]
         
@@ -62,17 +60,6 @@ class Camera:
         elif peak_value > 160:
             self.set_camera_exposure(max(self.__exposure - 10, 80))
             print(f"Adjusing exposure to {self.__exposure}, peak_bright {peak_value}")
-
-    def preprocess_frame(self, frame, save):
-
-        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-        
-        if save:
-            # currently there are no adjutions so it doesnt need to be saved
-            #cv2.imwrite("preprocessd_frame.png", cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR))
-            pass
-        return hsv
-    
 
     def create_mask(self, hsv, save=False):
         """ Create a mask for detecting the orange ball. """
@@ -128,7 +115,7 @@ class Camera:
             
         frame = cv2.resize(frame, (320, 240), interpolation= cv2.INTER_LINEAR)
 
-        hsv = self.preprocess_frame(frame, save)
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         mask = self.create_mask(hsv, save)
 
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -149,7 +136,6 @@ class Camera:
             cv2.imwrite("Detected_Circles.png", frame)
 
         return None, None
-
 
     def get_ball_pos(self, save=False, use_cam=True, adjust_exposure=False, img=None):
         # Get the ball's position in the image frame
