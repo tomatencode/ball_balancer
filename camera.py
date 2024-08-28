@@ -11,7 +11,7 @@ class Camera:
         subprocess.run(['v4l2-ctl', '--set-ctrl=auto_exposure=1'], check=True)
         subprocess.run(['v4l2-ctl', '--set-ctrl=white_balance_automatic=0'], check=True)
         
-        self.__exposure = 150
+        self.__exposure = 100
         self.set_camera_exposure(self.__exposure)
 
         ret, frame = self.__cap.read()
@@ -54,7 +54,7 @@ class Camera:
         
         peak_value = np.argmax(hist)
 
-        if peak_value < 110:
+        if peak_value < 100:
             self.set_camera_exposure(min(self.__exposure + 10, 2500))
             print(f"Adjusing exposure to {self.__exposure}, peak_bright {peak_value}")
         elif peak_value > 160:
