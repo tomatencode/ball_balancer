@@ -2,6 +2,8 @@ import RPi.GPIO as GPIO
 import threading as th
 import time
 import math
+import signal
+import sys
 import numpy as np
 from inverse_kinimatics import calc_servo_positions, normal_vector_from_projections, angle_disc_and_rotated_axis
 from servo import Servo
@@ -30,14 +32,21 @@ integral = np.array([0.0,0.0])
 last_time = time.time()
 
 # Flags
-running = True
 ball_on_plate = False
 
-# Key capture thread to stop the program
-def key_capture_thread():
-    global running
-    input()
-    running = False
+def cleanup():
+    global camera, servo1, servo2, servo3
+    del camera
+    del servo1
+    del servo2
+    del servo3
+    GPIO.cleanup()
+    print("everything cleand up.")
+
+def handle_signal(signum, frame):
+    print("Shutdown signal received. Cleaning up...")
+    cleanup()
+    sys.exit(0)
 
 # Get ball velocity
 def get_ball_vel(pos, last_pos, dt):
@@ -92,71 +101,64 @@ def calc_plate_height(pos, disc_normal, base_height=120):
     
     return base_height-math.tan(ball_disc_angle)*min(math.sqrt(pos[0]**2+pos[1]**2),100)
 
-th.Thread(target=key_capture_thread, args=(), name='key_capture_thread', daemon=True).start()
+# Set up signal handling
+signal.signal(signal.SIGTERM, handle_signal)
 
 time_started = time.time()
-while running:
-    
-    pos = camera.get_ball_pos()
-    
-    if not np.isnan(pos).all(): # if camera sees the ball
-        if not ball_on_plate:
-            ball_on_plate = True
-            print("back on :D")
+try:
+    while True:
         
-        current_time = time.time()
-        dt = current_time - last_time
-        time_running = current_time - time_started
+        pos = camera.get_ball_pos()
         
-        last_time = current_time
-
-        #target_pos = line_path(time_running)
-        
-        error = pos-target_pos
-
-        integral = update_integral(integral, error, dt)
-
-        vel = get_ball_vel(pos, last_pos, dt)
-        
-        if np.linalg.norm(pos) < 10 and np.linalg.norm(vel) < 20:
-            camera.get_ball_pos(adjust_exposure=True)
-        
-        wanted_accseleration = p*error + i*integral + d*vel
-        
-        last_pos = pos
-        
-        slope = np.arcsin(np.clip(wanted_accseleration,-0.5, 0.5))
-        
-        disc_normal = normal_vector_from_projections(slope[0], slope[1])
-        
-        disc_normal = cap_normal_vector(disc_normal, math.radians(15))
-        
-        height = calc_plate_height(pos,disc_normal)
-        
-        angle1, angle2, angle3 = calc_servo_positions(disc_normal, height)
-        servo1.angle = angle1
-        servo2.angle = angle2
-        servo3.angle = angle3
-    else:
-        if ball_on_plate:
-            ball_on_plate = False
-            print("ball fell off :(")
+        if not np.isnan(pos).all(): # if camera sees the ball
+            if not ball_on_plate:
+                ball_on_plate = True
+                print("back on :D")
             
-        angle1, angle2, angle3 = calc_servo_positions([0,0,1], 120)
-        servo1.angle = angle1
-        servo2.angle = angle2
-        servo3.angle = angle3
+            current_time = time.time()
+            dt = current_time - last_time
+            time_running = current_time - time_started
+            
+            last_time = current_time
 
-# Cleanup
-angle1, angle2, angle3 = calc_servo_positions([0,0,1], 120)
-servo1.angle = angle1
-servo2.angle = angle2
-servo3.angle = angle3
+            #target_pos = line_path(time_running)
+            
+            error = pos-target_pos
 
-time.sleep(0.3)
+            integral = update_integral(integral, error, dt)
 
-del camera
-del servo1
-del servo2
-del servo3
-GPIO.cleanup()
+            vel = get_ball_vel(pos, last_pos, dt)
+            
+            if np.linalg.norm(pos) < 10 and np.linalg.norm(vel) < 20:
+                camera.get_ball_pos(adjust_exposure=True)
+            
+            wanted_accseleration = p*error + i*integral + d*vel
+            
+            last_pos = pos
+            
+            slope = np.arcsin(np.clip(wanted_accseleration,-0.5, 0.5))
+            
+            disc_normal = normal_vector_from_projections(slope[0], slope[1])
+            
+            disc_normal = cap_normal_vector(disc_normal, math.radians(15))
+            
+            height = calc_plate_height(pos,disc_normal)
+            
+            angle1, angle2, angle3 = calc_servo_positions(disc_normal, height)
+            servo1.angle = angle1
+            servo2.angle = angle2
+            servo3.angle = angle3
+        else:
+            if ball_on_plate:
+                ball_on_plate = False
+                print("ball fell off :(")
+                
+            angle1, angle2, angle3 = calc_servo_positions([0,0,1], 120)
+            servo1.angle = angle1
+            servo2.angle = angle2
+            servo3.angle = angle3
+except KeyboardInterrupt:
+    print()
+    print("stopt by user...")
+finally:
+    cleanup()
