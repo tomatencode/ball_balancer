@@ -27,8 +27,8 @@ max_integral = 120  # Limit for integral term
 
 # State variables
 last_pos = np.array([np.nan, np.nan])
-target_pos = np.array([0.0,0.0])
-integral = np.array([0.0,0.0])
+target_pos = np.array([0.0, 0.0])
+integral = np.array([0.0, 0.0])
 last_time = time.time()
 
 # Flags
@@ -36,32 +36,33 @@ ball_on_plate = False
 
 def cleanup():
     global camera, servo1, servo2, servo3
+    print("Performing cleanup...")
     del camera
     del servo1
     del servo2
     del servo3
     GPIO.cleanup()
-    print("everything cleand up.")
+    print("Cleanup completed.")
 
 def handle_signal(signum, frame):
     print("Shutdown signal received. Cleaning up...")
-    cleanup()
     sys.exit(0)
 
-# Get ball velocity
+# Set up signal handling
+signal.signal(signal.SIGTERM, handle_signal) # handle request per command
+signal.signal(signal.SIGINT, handle_signal)  # Handle keyboard interrupt
+
 def get_ball_vel(pos, last_pos, dt):
     if not np.isnan(last_pos).all():
         pos_diff = pos - last_pos
-        vel = pos_diff/dt
+        vel = pos_diff / dt
     else:
-        vel = np.array([0.0,0.0])
+        vel = np.array([0.0, 0.0])
     return vel
 
-# updates integal term
 def update_integral(integral, error, dt):
     integral += error * dt
     integral = np.clip(integral, -max_integral, max_integral)
-    
     return integral
 
 def cap_normal_vector(normal_vector, max_angle):
@@ -83,7 +84,6 @@ def cap_normal_vector(normal_vector, max_angle):
     
     return normal_vector
 
-# calculates the height of the center of the plate to keep the ball at a constant one (looks cool)
 def calc_plate_height(pos, disc_normal, base_height=120):
     if pos[0] == 0:
         if pos[1] > 0:
@@ -93,25 +93,21 @@ def calc_plate_height(pos, disc_normal, base_height=120):
         else:
             angle_ball_center = 0
     elif pos[0] > 0:
-        angle_ball_center = math.atan(pos[1]/pos[0])
+        angle_ball_center = math.atan(pos[1] / pos[0])
     else:
-        angle_ball_center = math.atan(pos[1]/pos[0]) + math.radians(180)
+        angle_ball_center = math.atan(pos[1] / pos[0]) + math.radians(180)
     
     ball_disc_angle = angle_disc_and_rotated_axis(disc_normal, angle_ball_center)
     
-    return base_height-math.tan(ball_disc_angle)*min(math.sqrt(pos[0]**2+pos[1]**2),100)
+    return base_height - math.tan(ball_disc_angle) * min(math.sqrt(pos[0]**2 + pos[1]**2), 100)
 
-# Set up signal handling
-signal.signal(signal.SIGTERM, handle_signal)
-
-print("started script")
+print("Started")
 time_started = time.time()
 try:
     while True:
-        
         pos = camera.get_ball_pos()
         
-        if not np.isnan(pos).all(): # if camera sees the ball
+        if not np.isnan(pos).all():  # If camera sees the ball
             if not ball_on_plate:
                 ball_on_plate = True
             
@@ -121,28 +117,20 @@ try:
             
             last_time = current_time
 
-            #target_pos = line_path(time_running)
-            
-            error = pos-target_pos
-
+            error = pos - target_pos
             integral = update_integral(integral, error, dt)
-
             vel = get_ball_vel(pos, last_pos, dt)
             
             if np.linalg.norm(pos) < 10 and np.linalg.norm(vel) < 20:
                 camera.get_ball_pos(adjust_exposure=True)
             
-            wanted_accseleration = p*error + i*integral + d*vel
-            
+            wanted_acceleration = p * error + i * integral + d * vel
             last_pos = pos
-            
-            slope = np.arcsin(np.clip(wanted_accseleration,-0.5, 0.5))
+            slope = np.arcsin(np.clip(wanted_acceleration, -0.5, 0.5))
             
             disc_normal = normal_vector_from_projections(slope[0], slope[1])
-            
             disc_normal = cap_normal_vector(disc_normal, math.radians(15))
-            
-            height = calc_plate_height(pos,disc_normal)
+            height = calc_plate_height(pos, disc_normal)
             
             angle1, angle2, angle3 = calc_servo_positions(disc_normal, height)
             servo1.angle = angle1
@@ -151,13 +139,9 @@ try:
         else:
             if ball_on_plate:
                 ball_on_plate = False
-                
-            angle1, angle2, angle3 = calc_servo_positions([0,0,1], 120)
+            angle1, angle2, angle3 = calc_servo_positions([0, 0, 1], 120)
             servo1.angle = angle1
             servo2.angle = angle2
             servo3.angle = angle3
-except KeyboardInterrupt:
-    print()
-    print("stopt by user...")
 finally:
     cleanup()
